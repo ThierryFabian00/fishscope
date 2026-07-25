@@ -10,6 +10,7 @@ from src.dashboard_data import (
     calcular_indicadores,
     carregar_csv,
     carregar_dados_dashboard,
+    catalogo_taxonomico,
     consulta_dashboard,
     distribuicao_origem,
     filtrar_ocorrencias,
@@ -17,7 +18,10 @@ from src.dashboard_data import (
     indicadores_qualidade,
     normalizar_dados,
     ranking_especies,
+    serie_anual,
+    serie_mensal,
     serie_temporal,
+    serie_temporal_especies,
 )
 
 
@@ -131,6 +135,10 @@ class TestDadosDashboard(unittest.TestCase):
         indicadores = calcular_indicadores(self.dados)
         ranking = ranking_especies(self.dados)
         temporal = serie_temporal(self.dados)
+        anual = serie_anual(self.dados)
+        mensal = serie_mensal(self.dados)
+        comparacao = serie_temporal_especies(self.dados)
+        taxonomia = catalogo_taxonomico(self.dados)
         origens = distribuicao_origem(self.dados).set_index("origin_status")
 
         self.assertEqual(indicadores["occurrences"], 3)
@@ -138,6 +146,16 @@ class TestDadosDashboard(unittest.TestCase):
         self.assertEqual(indicadores["introduced_species"], 1)
         self.assertEqual(ranking.iloc[0]["canonical_name"], "Species alpha")
         self.assertEqual(int(temporal["occurrence_count"].sum()), 3)
+        self.assertEqual(int(anual["occurrence_count"].sum()), 3)
+        self.assertEqual(int(mensal["occurrence_count"].sum()), 3)
+        self.assertEqual(int(comparacao["occurrence_count"].sum()), 3)
+        self.assertEqual(len(taxonomia), 2)
+        self.assertEqual(
+            taxonomia.loc[
+                taxonomia["canonical_name"].eq("Species alpha"), "family"
+            ].iloc[0],
+            "Alphaidae",
+        )
         self.assertEqual(origens.loc["NATIVE", "species_count"], 1)
 
     def test_resume_qualidade_e_alertas(self):

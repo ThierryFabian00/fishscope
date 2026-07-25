@@ -424,6 +424,67 @@ def serie_temporal(dados: pd.DataFrame) -> pd.DataFrame:
     return tabela.sort_values("period")
 
 
+def serie_anual(dados: pd.DataFrame) -> pd.DataFrame:
+    validos = dados.dropna(subset=["event_year"])
+    if validos.empty:
+        return pd.DataFrame(columns=["event_year", "occurrence_count"])
+    return (
+        validos.groupby("event_year", as_index=False)
+        .size()
+        .rename(columns={"size": "occurrence_count"})
+        .sort_values("event_year")
+    )
+
+
+def serie_mensal(dados: pd.DataFrame) -> pd.DataFrame:
+    validos = dados.dropna(subset=["event_month"])
+    if validos.empty:
+        return pd.DataFrame(columns=["event_month", "occurrence_count"])
+    return (
+        validos.groupby("event_month", as_index=False)
+        .size()
+        .rename(columns={"size": "occurrence_count"})
+        .sort_values("event_month")
+    )
+
+
+def serie_temporal_especies(
+    dados: pd.DataFrame, limite_especies: int = 5
+) -> pd.DataFrame:
+    if limite_especies <= 0:
+        raise ValueError("O limite de espécies deve ser positivo.")
+    validos = dados.dropna(subset=["event_year", "canonical_name"])
+    if validos.empty:
+        return pd.DataFrame(
+            columns=["event_year", "canonical_name", "occurrence_count"]
+        )
+    especies = validos["canonical_name"].value_counts().head(limite_especies).index
+    return (
+        validos.loc[validos["canonical_name"].isin(especies)]
+        .groupby(["event_year", "canonical_name"], as_index=False)
+        .size()
+        .rename(columns={"size": "occurrence_count"})
+        .sort_values(["event_year", "canonical_name"])
+    )
+
+
+def catalogo_taxonomico(dados: pd.DataFrame) -> pd.DataFrame:
+    return (
+        dados.groupby(
+            ["species_key", "canonical_name", "family", "order_name"],
+            dropna=False,
+            as_index=False,
+        )
+        .agg(
+            occurrence_count=("gbif_id", "size"),
+            origin_status=("origin_status", "first"),
+            iucn_category=("iucn_category", "first"),
+        )
+        .sort_values(["canonical_name", "species_key"])
+        .reset_index(drop=True)
+    )
+
+
 def distribuicao_origem(dados: pd.DataFrame) -> pd.DataFrame:
     especies = dados[["species_key", "origin_status"]].drop_duplicates("species_key")
     return (
