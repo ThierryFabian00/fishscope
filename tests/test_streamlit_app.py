@@ -28,25 +28,43 @@ class TestStreamlitApp(unittest.TestCase):
         self.assertEqual(app.title[0].value, "Peixes da Bacia do Paraná")
         self.assertEqual(
             [aba.label for aba in app.tabs],
-            ["Visão geral", "Distribuição", "Qualidade", "Dados"],
+            ["Visão geral", "Mapa", "Temporal", "Espécies", "Qualidade", "Dados"],
         )
         metricas = {metrica.label: metrica.value for metrica in app.metric}
         self.assertEqual(metricas["Ocorrências"], "3.764")
         self.assertEqual(metricas["Espécies"], "352")
+        self.assertEqual(metricas["Fonte"], "PostgreSQL")
+        self.assertNotEqual(metricas["Última atualização"], "Não disponível")
         self.assertEqual(metricas["Recebidos"], "5.000")
         self.assertEqual(metricas["Aproveitados"], "3.764")
         self.assertEqual(metricas["Descartados"], "1.236")
         self.assertEqual(metricas["Aproveitamento"], "75.3%")
         self.assertEqual(metricas["Duplicidade potencial"], "1.299")
-        self.assertEqual(app.selectbox[0].label, "País")
-        self.assertEqual(app.selectbox[0].value, "BR")
+        seletor_pais = next(item for item in app.selectbox if item.label == "País")
+        self.assertEqual(seletor_pais.value, "BR")
+        self.assertEqual(app.radio[0].label, "Visualização do mapa")
+        self.assertEqual(app.radio[0].value, "Pontos por espécie")
+        self.assertEqual(
+            app.radio[0].options,
+            ["Pontos por espécie", "Mapa de calor", "Agrupamento espacial"],
+        )
+        self.assertTrue(
+            any(item.label == "Detalhes de uma ocorrência" for item in app.selectbox)
+        )
+        self.assertEqual(app.text_input[0].label, "Buscar por nome científico")
+
+        app.radio[0].set_value("Mapa de calor").run()
+        self.assertFalse(app.exception)
+        app.radio[0].set_value("Agrupamento espacial").run()
+        self.assertFalse(app.exception)
 
         opcoes_especies = app.multiselect[0].options
         self.assertGreaterEqual(len(opcoes_especies), 2)
         app.multiselect[0].set_value(opcoes_especies[:2]).run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.multiselect[0].value), 2)
-        app.selectbox[0].set_value("CH").run()
+        seletor_pais = next(item for item in app.selectbox if item.label == "País")
+        seletor_pais.set_value("CH").run()
 
         self.assertFalse(app.exception)
         self.assertEqual(app.title[0].value, "Ocorrências de peixes — Suíça")

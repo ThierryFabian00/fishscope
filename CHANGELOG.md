@@ -2,6 +2,16 @@
 
 Todas as alterações relevantes deste projeto são documentadas neste arquivo.
 
+## [Não publicado]
+
+### Adicionado
+
+- dashboard global por país com fonte e última atualização;
+- mapas de pontos por espécie, calor e agrupamento espacial;
+- detalhe selecionável de ocorrência;
+- séries anual, mensal e comparação temporal entre espécies;
+- catálogo taxonômico pesquisável e filtros globais de período e localização.
+
 ## [1.0.0] - 2026-07-16
 
 ### Adicionado

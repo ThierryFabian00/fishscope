@@ -1,3 +1,5 @@
+import colorsys
+import hashlib
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,13 +20,16 @@ from src.dashboard_data import (  # noqa: E402
     ResultadoFonte,
     calcular_indicadores,
     carregar_dados_dashboard,
+    catalogo_taxonomico,
     distribuicao_origem,
     distribuicao_tipo,
     filtrar_ocorrencias,
     frequencia_alertas,
     indicadores_qualidade,
     ranking_especies,
+    serie_anual,
     serie_temporal,
+    serie_temporal_especies,
 )
 from src.database import ConfiguracaoBanco  # noqa: E402
 from src.filter_basin import ARQUIVO_LIMITE  # noqa: E402
@@ -90,7 +95,7 @@ def aplicar_estilo() -> None:
             padding: 1rem 1.05rem;
         }
         [data-testid="stMetricLabel"] { color: var(--muted); }
-        [data-testid="stMetricValue"] { color: var(--ink); font-size: 1.6rem; }
+        [data-testid="stMetricValue"] { color: var(--ink); font-size: 1.4rem; }
         .source-row { display: flex; align-items: center; gap: .55rem; color: var(--muted); margin: .2rem 0 1.1rem; }
         .source-badge {
             display: inline-flex; align-items: center; min-height: 26px;
@@ -158,11 +163,25 @@ def layout_grafico(figura: Any, altura: int = 390) -> Any:
     return figura
 
 
-def criar_mapa(dados: pd.DataFrame, exibir_limite: bool = True) -> pdk.Deck | None:
+def cor_especie(chave: Any) -> list[int]:
+    resumo = hashlib.sha256(str(chave).encode("utf-8")).digest()
+    matiz = int.from_bytes(resumo[:2], "big") / 65535
+    vermelho, verde, azul = colorsys.hsv_to_rgb(matiz, 0.68, 0.78)
+    return [int(vermelho * 255), int(verde * 255), int(azul * 255), 190]
+
+
+def criar_mapa(
+    dados: pd.DataFrame,
+    exibir_limite: bool = True,
+    modo: str = "Pontos por espécie",
+) -> pdk.Deck | None:
     pontos = dados.dropna(subset=["decimal_latitude", "decimal_longitude"]).copy()
     if pontos.empty:
         return None
-    pontos["point_color"] = pontos["origin_status"].map(CORES_ORIGEM)
+    modos = {"Pontos por espécie", "Mapa de calor", "Agrupamento espacial"}
+    if modo not in modos:
+        raise ValueError(f"Modo de mapa inválido: {modo}")
+    pontos["point_color"] = pontos["species_key"].map(cor_especie)
     pontos["origin_display"] = pontos["origin_status"].map(ROTULOS_ORIGEM)
     pontos["state_display"] = pontos["state_normalized"].map(rotulo_estado)
     pontos["point_color"] = pontos["point_color"].apply(
@@ -183,37 +202,73 @@ def criar_mapa(dados: pd.DataFrame, exibir_limite: bool = True) -> pdk.Deck | No
                 pickable=False,
             )
         )
-    camadas.append(
-        pdk.Layer(
-            "ScatterplotLayer",
-            pontos,
-            get_position="[decimal_longitude, decimal_latitude]",
-            get_fill_color="point_color",
-            get_radius=2600,
-            radius_min_pixels=3,
-            radius_max_pixels=11,
-            stroked=True,
-            get_line_color=[255, 255, 255, 130],
-            line_width_min_pixels=0.4,
-            opacity=0.75,
-            pickable=True,
+    if modo == "Pontos por espécie":
+        camadas.append(
+            pdk.Layer(
+                "ScatterplotLayer",
+                pontos,
+                get_position="[decimal_longitude, decimal_latitude]",
+                get_fill_color="point_color",
+                get_radius=2600,
+                radius_min_pixels=3,
+                radius_max_pixels=11,
+                stroked=True,
+                get_line_color=[255, 255, 255, 130],
+                line_width_min_pixels=0.4,
+                opacity=0.75,
+                pickable=True,
+                auto_highlight=True,
+            )
         )
-    )
+    elif modo == "Mapa de calor":
+        camadas.append(
+            pdk.Layer(
+                "HeatmapLayer",
+                pontos,
+                get_position="[decimal_longitude, decimal_latitude]",
+                get_weight=1,
+                radius_pixels=45,
+                intensity=1,
+                threshold=0.03,
+            )
+        )
+    else:
+        camadas.append(
+            pdk.Layer(
+                "HexagonLayer",
+                pontos,
+                get_position="[decimal_longitude, decimal_latitude]",
+                radius=12000,
+                elevation_scale=20,
+                elevation_range=[0, 1000],
+                extruded=True,
+                pickable=True,
+                auto_highlight=True,
+                coverage=0.88,
+            )
+        )
     zoom = 5.0 if len(pontos) >= 50 else 6.2
     vista = pdk.ViewState(
         latitude=float(pontos["decimal_latitude"].mean()),
         longitude=float(pontos["decimal_longitude"].mean()),
         zoom=zoom,
-        pitch=0,
+        pitch=35 if modo == "Agrupamento espacial" else 0,
     )
     return pdk.Deck(
         layers=camadas,
         initial_view_state=vista,
         map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-        tooltip={
-            "html": "<b>{canonical_name}</b><br/>{origin_display} · {state_display}<br/>{event_year} · {basis_of_record}",
-            "style": {"backgroundColor": "#17211d", "color": "white"},
-        },
+        tooltip=(
+            {
+                "html": "<b>{canonical_name}</b><br/>{state_display}<br/>{event_year} · {basis_of_record}<br/>GBIF {gbif_id}",
+                "style": {"backgroundColor": "#17211d", "color": "white"},
+            }
+            if modo == "Pontos por espécie"
+            else {
+                "html": "<b>{elevationValue} ocorrências próximas</b>",
+                "style": {"backgroundColor": "#17211d", "color": "white"},
+            }
+        ),
     )
 
 
@@ -379,13 +434,19 @@ if resultado.aviso:
     st.warning(resultado.aviso)
 
 indicadores = calcular_indicadores(filtrados)
+ultima_atualizacao = (
+    pd.Timestamp(resultado.resumo_importacao.atualizado_em).strftime("%d/%m/%Y")
+    if resultado.resumo_importacao
+    and resultado.resumo_importacao.atualizado_em is not None
+    else "Não disponível"
+)
 colunas_metricas = st.columns(5)
 metricas = [
     ("Ocorrências", formatar_numero(indicadores["occurrences"])),
     ("Espécies", formatar_numero(indicadores["species"])),
-    ("Introduzidas", formatar_numero(indicadores["introduced_species"])),
-    ("Unidades", formatar_numero(indicadores["states"])),
     ("Período", indicadores["period"]),
+    ("Última atualização", ultima_atualizacao),
+    ("Fonte", resultado.fonte),
 ]
 for coluna, (rotulo, valor) in zip(colunas_metricas, metricas, strict=True):
     coluna.metric(rotulo, valor)
@@ -397,8 +458,8 @@ if filtrados.empty:
     )
     st.stop()
 
-aba_visao, aba_distribuicao, aba_qualidade, aba_dados = st.tabs(
-    ["Visão geral", "Distribuição", "Qualidade", "Dados"]
+aba_visao, aba_mapa, aba_temporal, aba_especies, aba_qualidade, aba_dados = st.tabs(
+    ["Visão geral", "Mapa", "Temporal", "Espécies", "Qualidade", "Dados"]
 )
 
 with aba_visao:
@@ -450,28 +511,65 @@ with aba_visao:
             config={"displayModeBar": False},
         )
 
-    temporal = serie_temporal(filtrados)
-    figura = px.line(
-        temporal,
-        x="period",
-        y="occurrence_count",
-        markers=True,
-        labels={"period": "Período", "occurrence_count": "Ocorrências"},
-        title="Registros ao longo do tempo",
+with aba_mapa:
+    modo_mapa = st.radio(
+        "Visualização do mapa",
+        ["Pontos por espécie", "Mapa de calor", "Agrupamento espacial"],
+        horizontal=True,
     )
-    figura.update_traces(line_color="#2563eb", marker_color="#d97706")
-    st.plotly_chart(
-        layout_grafico(figura, 360),
-        width="stretch",
-        config={"displayModeBar": False},
+    mapa = criar_mapa(
+        filtrados,
+        exibir_limite=pais.codigo_iso == PAIS_PADRAO,
+        modo=modo_mapa,
     )
-
-with aba_distribuicao:
-    mapa = criar_mapa(filtrados, exibir_limite=pais.codigo_iso == PAIS_PADRAO)
     if mapa:
         st.pydeck_chart(mapa, width="stretch", height=610)
     else:
         st.info("O recorte atual não possui coordenadas válidas.")
+
+    registros_mapa = filtrados.dropna(subset=["decimal_latitude", "decimal_longitude"])
+    ids_mapa = registros_mapa["gbif_id"].tolist()
+    nomes_ids = registros_mapa.set_index("gbif_id")["canonical_name"].to_dict()
+    ocorrencia_selecionada = st.selectbox(
+        "Detalhes de uma ocorrência",
+        [None, *ids_mapa],
+        key=f"ocorrencia_mapa_{pais.codigo_iso}",
+        format_func=lambda chave: (
+            "Selecione uma ocorrência"
+            if chave is None
+            else f"GBIF {chave} — {nomes_ids.get(chave, 'Espécie não informada')}"
+        ),
+    )
+    if ocorrencia_selecionada is not None:
+        detalhe = registros_mapa.loc[
+            registros_mapa["gbif_id"].eq(ocorrencia_selecionada),
+            [
+                "gbif_id",
+                "canonical_name",
+                "family",
+                "order_name",
+                "event_date",
+                "basis_of_record",
+                "state_normalized",
+                "locality",
+                "decimal_latitude",
+                "decimal_longitude",
+            ],
+        ].rename(
+            columns={
+                "gbif_id": "GBIF ID",
+                "canonical_name": "Espécie",
+                "family": "Família",
+                "order_name": "Ordem",
+                "event_date": "Data",
+                "basis_of_record": "Tipo",
+                "state_normalized": "Unidade",
+                "locality": "Localidade",
+                "decimal_latitude": "Latitude",
+                "decimal_longitude": "Longitude",
+            }
+        )
+        st.dataframe(detalhe, hide_index=True, width="stretch")
 
     tipo_tabela = distribuicao_tipo(filtrados).head(10)
     estado_tabela = (
@@ -514,6 +612,90 @@ with aba_distribuicao:
             config={"displayModeBar": False},
         )
 
+with aba_temporal:
+    anual = serie_anual(filtrados)
+    mensal = serie_temporal(filtrados)
+    coluna_anual, coluna_mensal = st.columns(2)
+    with coluna_anual:
+        figura = px.bar(
+            anual,
+            x="event_year",
+            y="occurrence_count",
+            labels={"event_year": "Ano", "occurrence_count": "Ocorrências"},
+            title="Ocorrências por ano",
+            color_discrete_sequence=["#0f766e"],
+        )
+        st.plotly_chart(
+            layout_grafico(figura, 400),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
+    with coluna_mensal:
+        figura = px.line(
+            mensal,
+            x="period",
+            y="occurrence_count",
+            labels={"period": "Mês", "occurrence_count": "Ocorrências"},
+            title="Ocorrências por mês",
+        )
+        figura.update_traces(line_color="#2563eb")
+        st.plotly_chart(
+            layout_grafico(figura, 400),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
+
+    comparacao = serie_temporal_especies(filtrados)
+    figura = px.line(
+        comparacao,
+        x="event_year",
+        y="occurrence_count",
+        color="canonical_name",
+        markers=True,
+        labels={
+            "event_year": "Ano",
+            "occurrence_count": "Ocorrências",
+            "canonical_name": "Espécie",
+        },
+        title="Comparação temporal entre as espécies mais registradas",
+    )
+    st.plotly_chart(
+        layout_grafico(figura, 430),
+        width="stretch",
+        config={"displayModeBar": False},
+    )
+
+with aba_especies:
+    st.subheader("Catálogo taxonômico")
+    busca_taxonomica = st.text_input(
+        "Buscar por nome científico",
+        placeholder="Digite gênero ou espécie",
+        key="busca_taxonomica",
+    )
+    taxonomia = catalogo_taxonomico(filtrados)
+    if busca_taxonomica.strip():
+        taxonomia = taxonomia.loc[
+            taxonomia["canonical_name"]
+            .fillna("")
+            .str.contains(busca_taxonomica.strip(), case=False, regex=False)
+        ]
+    taxonomia["origin_status"] = taxonomia["origin_status"].map(ROTULOS_ORIGEM)
+    st.dataframe(
+        taxonomia.rename(
+            columns={
+                "species_key": "Chave taxonômica",
+                "canonical_name": "Nome científico",
+                "family": "Família",
+                "order_name": "Ordem",
+                "occurrence_count": "Ocorrências",
+                "origin_status": "Origem",
+                "iucn_category": "IUCN",
+            }
+        ),
+        hide_index=True,
+        width="stretch",
+        height=520,
+    )
 with aba_qualidade:
     qualidade = indicadores_qualidade(filtrados)
     total = max(len(filtrados), 1)
@@ -566,6 +748,23 @@ with aba_qualidade:
         coluna.metric(rotulo, formatar_numero(valor), f"{100 * valor / total:.1f}%")
 
     evidencia = distribuicao_tipo(filtrados).head(12)
+    precisao = (
+        filtrados["date_precision"]
+        .fillna("MISSING")
+        .value_counts()
+        .rename_axis("date_precision")
+        .reset_index(name="record_count")
+    )
+    rotulos_precisao = {
+        "DAY": "Dia",
+        "MONTH": "Mês",
+        "YEAR": "Ano",
+        "UNKNOWN": "Desconhecida",
+        "MISSING": "Sem data",
+    }
+    precisao["precision_display"] = precisao["date_precision"].map(
+        lambda valor: rotulos_precisao.get(valor, valor)
+    )
     figura_evidencia = px.bar(
         evidencia.sort_values("occurrence_count"),
         x="occurrence_count",
@@ -575,11 +774,27 @@ with aba_qualidade:
         title="Distribuição por tipo de evidência",
         color_discrete_sequence=["#4f772d"],
     )
-    st.plotly_chart(
-        layout_grafico(figura_evidencia, 420),
-        width="stretch",
-        config={"displayModeBar": False},
+    figura_precisao = px.bar(
+        precisao,
+        x="precision_display",
+        y="record_count",
+        labels={"precision_display": "Precisão", "record_count": "Registros"},
+        title="Precisão das datas",
+        color_discrete_sequence=["#7c3f58"],
     )
+    coluna_evidencia, coluna_precisao = st.columns(2)
+    with coluna_evidencia:
+        st.plotly_chart(
+            layout_grafico(figura_evidencia, 420),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
+    with coluna_precisao:
+        st.plotly_chart(
+            layout_grafico(figura_precisao, 420),
+            width="stretch",
+            config={"displayModeBar": False},
+        )
 
     alertas_ocorrencia = frequencia_alertas(filtrados, "occurrence_issues").head(12)
     alertas_taxonomicos = frequencia_alertas(filtrados, "taxonomic_issues").head(12)

@@ -2,7 +2,9 @@
 
 ## Visão geral
 
-A Etapa 8 disponibiliza uma interface interativa para explorar as ocorrências de peixes da porção brasileira da Região Hidrográfica do Paraná. O dashboard consulta o schema PostgreSQL `biodiversity` e usa os CSVs processados como fallback quando a conexão não está disponível.
+A Etapa 8 disponibiliza uma interface global para explorar ocorrências de peixes
+por país. O dashboard consulta o schema PostgreSQL `biodiversity` e usa os CSVs
+processados como fallback quando a conexão não está disponível.
 
 ## Execução
 
@@ -19,6 +21,7 @@ Por padrão, a aplicação fica disponível em `http://localhost:8501`.
 
 ### Filtros
 
+- país;
 - espécie;
 - classificação de origem;
 - intervalo anual;
@@ -31,24 +34,40 @@ Todos os indicadores e elementos visuais usam simultaneamente o mesmo recorte.
 
 - quantidade de ocorrências;
 - espécies distintas;
+- período coberto;
+- data da última atualização;
+- fonte ativa;
 - espécies introduzidas;
-- unidades administrativas;
-- período observado;
 - ranking das espécies;
-- distribuição das espécies por origem;
-- série temporal mensal.
+- distribuição das espécies por origem.
 
-### Distribuição
+### Mapa
 
-O mapa usa PyDeck com o limite oficial simplificado apenas para renderização. Os pontos mantêm as coordenadas originais e são coloridos por origem. A aba também compara tipos de registro e unidades administrativas.
+O mapa usa PyDeck e oferece três modos: pontos coloridos por espécie, mapa de
+calor e agrupamento espacial hexagonal. O usuário pode selecionar um GBIF ID
+para consultar espécie, taxonomia, data, tipo, localidade e coordenadas. Para o
+Brasil, o limite oficial simplificado é exibido apenas como referência visual.
+
+### Temporal
+
+A aba apresenta ocorrências por ano, série mensal e comparação anual entre as
+cinco espécies mais registradas no recorte. O filtro de período da barra lateral
+é aplicado simultaneamente a todas as séries.
+
+### Espécies
+
+O catálogo taxonômico apresenta chave aceita, nome científico, família, ordem,
+número de ocorrências, origem e categoria IUCN. A busca aceita fragmentos do
+nome científico sem expressão regular. O ranking e a comparação temporal usam
+os mesmos filtros globais.
 
 ### Qualidade
 
 A aba apresenta o funil da última carga, o percentual aproveitado, registros sem
 identificação válida no nível de espécie, datas ausentes ou apenas mensais,
 coordenadas ausentes ou inválidas, duplicidades potenciais, alertas do GBIF e
-registros potencialmente fora do país. Também detalha a distribuição por tipo
-de evidência e as frequências dos códigos de alerta.
+registros potencialmente fora do país. Também detalha precisão das datas,
+distribuição por tipo de evidência e frequências dos códigos de alerta.
 
 ### Dados
 
@@ -69,14 +88,15 @@ Em uma hospedagem Streamlit, configure `DATABASE_URL` e `DB_SCHEMA` como secrets
 
 ## Validação
 
-O dashboard foi validado com os 3.792 registros e 356 espécies do PostgreSQL:
+O dashboard foi validado com os 3.764 registros e 352 espécies do Brasil no
+PostgreSQL:
 
 - renderização sem exceções pelo framework de testes do Streamlit;
 - filtros combinados testados com dados sintéticos;
-- filtro de introduzidas validado com 131 ocorrências e 6 espécies;
-- busca por *Oreochromis niloticus* validada com 58 ocorrências;
-- mapa carregado com limite e pontos;
-- layout desktop em 1440 px;
-- layout mobile em 390 px, sem rolagem horizontal e com filtros inicialmente recolhidos.
+- seleção de Brasil e Suíça validada contra o banco;
+- pontos por espécie, mapa de calor e agrupamento espacial renderizados;
+- séries anual, mensal e comparação entre espécies testadas;
+- busca taxonômica e detalhe de ocorrência disponíveis sem alterar código;
+- funil da carga e indicadores de qualidade conferidos com o PostgreSQL.
 
 As contagens representam ocorrências publicadas, não abundância biológica. A amostra atual também não substitui o download integral do GBIF com DOI.
