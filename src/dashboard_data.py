@@ -42,6 +42,25 @@ class ResultadoFonte:
     resumo_importacao: ResumoImportacao | None = None
 
 
+@dataclass(frozen=True)
+class ComparacaoPaises:
+    resumo: pd.DataFrame
+    temporal: pd.DataFrame
+    especies_compartilhadas: pd.DataFrame
+    especies_exclusivas_a: pd.DataFrame
+    especies_exclusivas_b: pd.DataFrame
+
+    @property
+    def similaridade_jaccard(self) -> float:
+        compartilhadas = len(self.especies_compartilhadas)
+        uniao = (
+            compartilhadas
+            + len(self.especies_exclusivas_a)
+            + len(self.especies_exclusivas_b)
+        )
+        return 100 * compartilhadas / uniao if uniao else 0.0
+
+
 COLUNAS_DASHBOARD = [
     "gbif_id",
     "species_key",
@@ -482,6 +501,106 @@ def catalogo_taxonomico(dados: pd.DataFrame) -> pd.DataFrame:
         )
         .sort_values(["canonical_name", "species_key"])
         .reset_index(drop=True)
+    )
+
+
+def comparar_paises(
+    dados_a: pd.DataFrame,
+    codigo_a: str,
+    nome_a: str,
+    dados_b: pd.DataFrame,
+    codigo_b: str,
+    nome_b: str,
+) -> ComparacaoPaises:
+    if codigo_a == codigo_b:
+        raise ValueError("Selecione dois países diferentes para comparar.")
+
+    def resumo_pais(dados: pd.DataFrame, codigo: str, nome: str) -> dict[str, Any]:
+        anos = dados["event_year"].dropna()
+        ocorrencias = len(dados)
+        especies = int(dados["species_key"].nunique())
+        coordenadas_validas = (~dados["invalid_coordinates"]).sum()
+        return {
+            "country_code": codigo,
+            "country_name": nome,
+            "occurrences": ocorrencias,
+            "species": especies,
+            "occurrences_per_species": ocorrencias / especies if especies else 0.0,
+            "years_with_records": int(anos.nunique()),
+            "period": (
+                f"{int(anos.min())}-{int(anos.max())}" if not anos.empty else "Sem data"
+            ),
+            "records_with_date_pct": (
+                100 * dados["event_date"].notna().sum() / ocorrencias
+                if ocorrencias
+                else 0.0
+            ),
+            "records_with_coordinates_pct": (
+                100 * coordenadas_validas / ocorrencias if ocorrencias else 0.0
+            ),
+        }
+
+    resumo = pd.DataFrame(
+        [
+            resumo_pais(dados_a, codigo_a, nome_a),
+            resumo_pais(dados_b, codigo_b, nome_b),
+        ]
+    )
+
+    temporais = []
+    for dados, codigo, nome in (
+        (dados_a, codigo_a, nome_a),
+        (dados_b, codigo_b, nome_b),
+    ):
+        anual = serie_anual(dados)
+        anual["country_code"] = codigo
+        anual["country_name"] = nome
+        total = int(anual["occurrence_count"].sum())
+        anual["sample_percentage"] = (
+            100 * anual["occurrence_count"] / total if total else 0.0
+        )
+        temporais.append(anual)
+    temporal = pd.concat(temporais, ignore_index=True)
+
+    def catalogo_pais(dados: pd.DataFrame, sufixo: str) -> pd.DataFrame:
+        return (
+            dados.dropna(subset=["species_key"])
+            .groupby("species_key", as_index=False)
+            .agg(
+                canonical_name=("canonical_name", "first"),
+                **{f"occurrences_{sufixo}": ("gbif_id", "size")},
+            )
+        )
+
+    catalogo_a = catalogo_pais(dados_a, "a")
+    catalogo_b = catalogo_pais(dados_b, "b")
+    uniao = catalogo_a.merge(
+        catalogo_b,
+        on="species_key",
+        how="outer",
+        suffixes=("_a", "_b"),
+        indicator=True,
+    )
+    uniao["canonical_name"] = uniao["canonical_name_a"].fillna(
+        uniao["canonical_name_b"]
+    )
+    colunas = ["species_key", "canonical_name"]
+    compartilhadas = uniao.loc[
+        uniao["_merge"].eq("both"),
+        [*colunas, "occurrences_a", "occurrences_b"],
+    ].sort_values("canonical_name")
+    exclusivas_a = uniao.loc[
+        uniao["_merge"].eq("left_only"), [*colunas, "occurrences_a"]
+    ].sort_values("canonical_name")
+    exclusivas_b = uniao.loc[
+        uniao["_merge"].eq("right_only"), [*colunas, "occurrences_b"]
+    ].sort_values("canonical_name")
+    return ComparacaoPaises(
+        resumo=resumo,
+        temporal=temporal,
+        especies_compartilhadas=compartilhadas.reset_index(drop=True),
+        especies_exclusivas_a=exclusivas_a.reset_index(drop=True),
+        especies_exclusivas_b=exclusivas_b.reset_index(drop=True),
     )
 
 

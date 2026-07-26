@@ -11,6 +11,9 @@ Todas as alterações relevantes deste projeto são documentadas neste arquivo.
 - detalhe selecionável de ocorrência;
 - séries anual, mensal e comparação temporal entre espécies;
 - catálogo taxonômico pesquisável e filtros globais de período e localização.
+- comparação entre dois países com métricas brutas e normalizadas;
+- identificação de espécies compartilhadas e exclusivas por país;
+- aviso metodológico sobre esforço amostral e vieses de publicação.
 
 ## [1.0.0] - 2026-07-16
 

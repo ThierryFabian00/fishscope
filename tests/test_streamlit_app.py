@@ -28,7 +28,15 @@ class TestStreamlitApp(unittest.TestCase):
         self.assertEqual(app.title[0].value, "Peixes da Bacia do Paraná")
         self.assertEqual(
             [aba.label for aba in app.tabs],
-            ["Visão geral", "Mapa", "Temporal", "Espécies", "Qualidade", "Dados"],
+            [
+                "Visão geral",
+                "Mapa",
+                "Temporal",
+                "Espécies",
+                "Comparação",
+                "Qualidade",
+                "Dados",
+            ],
         )
         metricas = {metrica.label: metrica.value for metrica in app.metric}
         self.assertEqual(metricas["Ocorrências"], "3.764")
@@ -52,6 +60,9 @@ class TestStreamlitApp(unittest.TestCase):
             any(item.label == "Detalhes de uma ocorrência" for item in app.selectbox)
         )
         self.assertEqual(app.text_input[0].label, "Buscar por nome científico")
+        self.assertTrue(any(item.label == "Primeiro país" for item in app.selectbox))
+        self.assertTrue(any(item.label == "Segundo país" for item in app.selectbox))
+        self.assertIn("Compartilhadas", metricas)
 
         app.radio[0].set_value("Mapa de calor").run()
         self.assertFalse(app.exception)
