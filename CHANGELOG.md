@@ -14,6 +14,9 @@ Todas as alterações relevantes deste projeto são documentadas neste arquivo.
 - comparação entre dois países com métricas brutas e normalizadas;
 - identificação de espécies compartilhadas e exclusivas por país;
 - aviso metodológico sobre esforço amostral e vieses de publicação.
+- relatório PDF reproduzível a partir dos filtros ativos;
+- gráficos, mapa, metodologia, limitações, fonte, data e assinatura dos
+  registros incluídos no relatório.
 
 ## [1.0.0] - 2026-07-16
 

@@ -72,6 +72,17 @@ exclusivas e informam a similaridade de Jaccard.
 A normalização facilita comparar o formato temporal das amostras, mas não
 elimina diferenças de área, esforço de coleta, instituições ou publicação.
 
+### Relatório
+
+A aba gera um PDF de três páginas a partir do recorte global ativo. O documento
+inclui resumo e filtros, indicadores, gráficos, mapa, metodologia, limitações,
+fonte e data de geração. Uma assinatura derivada dos GBIF IDs permite verificar
+se duas execuções utilizaram o mesmo conjunto de registros.
+
+O PDF é criado localmente e pode ser baixado sem transmitir os dados para um
+serviço externo. Consulte [Relatório automático](RELATORIO_AUTOMATICO_V2.md)
+para o procedimento de reprodução.
+
 ### Qualidade
 
 A aba apresenta o funil da última carga, o percentual aproveitado, registros sem
@@ -110,5 +121,6 @@ PostgreSQL:
 - busca taxonômica, detalhe de ocorrência e comparação Brasil–Suíça disponíveis
   sem alterar código;
 - funil da carga e indicadores de qualidade conferidos com o PostgreSQL.
+- relatório PDF gerado com três páginas e assinatura estável dos registros.
 
 As contagens representam ocorrências publicadas, não abundância biológica. A amostra atual também não substitui o download integral do GBIF com DOI.

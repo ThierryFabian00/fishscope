@@ -34,6 +34,7 @@ class TestStreamlitApp(unittest.TestCase):
                 "Temporal",
                 "Espécies",
                 "Comparação",
+                "Relatório",
                 "Qualidade",
                 "Dados",
             ],
@@ -63,6 +64,12 @@ class TestStreamlitApp(unittest.TestCase):
         self.assertTrue(any(item.label == "Primeiro país" for item in app.selectbox))
         self.assertTrue(any(item.label == "Segundo país" for item in app.selectbox))
         self.assertIn("Compartilhadas", metricas)
+        self.assertTrue(
+            any(
+                item.label == "Baixar relatório PDF"
+                for item in app.get("download_button")
+            )
+        )
 
         app.radio[0].set_value("Mapa de calor").run()
         self.assertFalse(app.exception)
