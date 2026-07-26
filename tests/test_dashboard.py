@@ -11,6 +11,7 @@ from src.dashboard_data import (
     carregar_csv,
     carregar_dados_dashboard,
     catalogo_taxonomico,
+    comparar_paises,
     consulta_dashboard,
     distribuicao_origem,
     filtrar_ocorrencias,
@@ -189,6 +190,41 @@ class TestDadosDashboard(unittest.TestCase):
         resumo = ResumoImportacao(5000, 3764, 1236, 555)
 
         self.assertAlmostEqual(resumo.percentual_aproveitado, 75.28)
+
+    def test_compara_especies_temporalidade_e_metricas_normalizadas(self):
+        dados_a = self.dados
+        brutos_b = dados_dashboard()
+        brutos_b.loc[brutos_b["species_key"].eq("B"), "species_key"] = "C"
+        brutos_b.loc[
+            brutos_b["canonical_name"].eq("Species beta"), "canonical_name"
+        ] = "Species gamma"
+        dados_b = normalizar_dados(brutos_b, "CH")
+
+        comparacao = comparar_paises(dados_a, "BR", "Brasil", dados_b, "CH", "Suíça")
+
+        self.assertEqual(comparacao.resumo["occurrences"].tolist(), [3, 3])
+        self.assertEqual(comparacao.resumo["species"].tolist(), [2, 2])
+        self.assertEqual(
+            comparacao.especies_compartilhadas["canonical_name"].tolist(),
+            ["Species alpha"],
+        )
+        self.assertEqual(
+            comparacao.especies_exclusivas_a["canonical_name"].tolist(),
+            ["Species beta"],
+        )
+        self.assertEqual(
+            comparacao.especies_exclusivas_b["canonical_name"].tolist(),
+            ["Species gamma"],
+        )
+        percentuais = comparacao.temporal.groupby("country_code")[
+            "sample_percentage"
+        ].sum()
+        self.assertAlmostEqual(percentuais["BR"], 100)
+        self.assertAlmostEqual(percentuais["CH"], 100)
+        self.assertAlmostEqual(comparacao.similaridade_jaccard, 100 / 3)
+
+        with self.assertRaisesRegex(ValueError, "dois países diferentes"):
+            comparar_paises(dados_a, "BR", "Brasil", dados_a, "BR", "Brasil")
 
     def test_carrega_fallback_csv(self):
         ocorrencias = pd.DataFrame(

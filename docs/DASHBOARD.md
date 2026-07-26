@@ -61,6 +61,17 @@ número de ocorrências, origem e categoria IUCN. A busca aceita fragmentos do
 nome científico sem expressão regular. O ranking e a comparação temporal usam
 os mesmos filtros globais.
 
+### Comparação
+
+A aba permite selecionar dois países, começando por Brasil e Suíça. Ela compara
+ocorrências, espécies, cobertura temporal, registros por espécie e completude
+de data e coordenadas. As séries anuais são exibidas em contagens brutas e como
+percentual da amostra de cada país. Tabelas separam espécies compartilhadas e
+exclusivas e informam a similaridade de Jaccard.
+
+A normalização facilita comparar o formato temporal das amostras, mas não
+elimina diferenças de área, esforço de coleta, instituições ou publicação.
+
 ### Qualidade
 
 A aba apresenta o funil da última carga, o percentual aproveitado, registros sem
@@ -96,7 +107,8 @@ PostgreSQL:
 - seleção de Brasil e Suíça validada contra o banco;
 - pontos por espécie, mapa de calor e agrupamento espacial renderizados;
 - séries anual, mensal e comparação entre espécies testadas;
-- busca taxonômica e detalhe de ocorrência disponíveis sem alterar código;
+- busca taxonômica, detalhe de ocorrência e comparação Brasil–Suíça disponíveis
+  sem alterar código;
 - funil da carga e indicadores de qualidade conferidos com o PostgreSQL.
 
 As contagens representam ocorrências publicadas, não abundância biológica. A amostra atual também não substitui o download integral do GBIF com DOI.

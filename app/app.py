@@ -21,6 +21,7 @@ from src.dashboard_data import (  # noqa: E402
     calcular_indicadores,
     carregar_dados_dashboard,
     catalogo_taxonomico,
+    comparar_paises,
     distribuicao_origem,
     distribuicao_tipo,
     filtrar_ocorrencias,
@@ -458,8 +459,24 @@ if filtrados.empty:
     )
     st.stop()
 
-aba_visao, aba_mapa, aba_temporal, aba_especies, aba_qualidade, aba_dados = st.tabs(
-    ["Visão geral", "Mapa", "Temporal", "Espécies", "Qualidade", "Dados"]
+(
+    aba_visao,
+    aba_mapa,
+    aba_temporal,
+    aba_especies,
+    aba_comparacao,
+    aba_qualidade,
+    aba_dados,
+) = st.tabs(
+    [
+        "Visão geral",
+        "Mapa",
+        "Temporal",
+        "Espécies",
+        "Comparação",
+        "Qualidade",
+        "Dados",
+    ]
 )
 
 with aba_visao:
@@ -696,6 +713,260 @@ with aba_especies:
         width="stretch",
         height=520,
     )
+
+with aba_comparacao:
+    st.subheader("Comparação entre países")
+    coluna_pais_a, coluna_pais_b = st.columns(2)
+    with coluna_pais_a:
+        codigo_comparacao_a = st.selectbox(
+            "Primeiro país",
+            codigos_paises,
+            index=codigos_paises.index("BR"),
+            format_func=lambda codigo: f"{nomes_por_codigo[codigo]} ({codigo})",
+            key="pais_comparacao_a",
+        )
+    with coluna_pais_b:
+        codigo_comparacao_b = st.selectbox(
+            "Segundo país",
+            codigos_paises,
+            index=codigos_paises.index("CH"),
+            format_func=lambda codigo: f"{nomes_por_codigo[codigo]} ({codigo})",
+            key="pais_comparacao_b",
+        )
+
+    if codigo_comparacao_a == codigo_comparacao_b:
+        st.warning("Selecione dois países diferentes para realizar a comparação.")
+    else:
+        fonte_a = obter_dados(schema, codigo_comparacao_a)
+        fonte_b = obter_dados(schema, codigo_comparacao_b)
+        dados_a = fonte_a.dados
+        dados_b = fonte_b.dados
+        if dados_a.empty or dados_b.empty:
+            sem_dados = [
+                nomes_por_codigo[codigo]
+                for codigo, tabela in (
+                    (codigo_comparacao_a, dados_a),
+                    (codigo_comparacao_b, dados_b),
+                )
+                if tabela.empty
+            ]
+            st.warning(
+                "Não há dados armazenados para: "
+                f"{', '.join(sem_dados)}. Selecione o país no filtro principal "
+                "para executar sua primeira atualização."
+            )
+        else:
+            anos_comparacao = pd.concat(
+                [dados_a["event_year"], dados_b["event_year"]]
+            ).dropna()
+            if not anos_comparacao.empty:
+                limites_comparacao = (
+                    int(anos_comparacao.min()),
+                    int(anos_comparacao.max()),
+                )
+                intervalo_comparacao = st.slider(
+                    "Período da comparação",
+                    min_value=limites_comparacao[0],
+                    max_value=limites_comparacao[1],
+                    value=limites_comparacao,
+                    key="periodo_comparacao",
+                )
+                dados_a = filtrar_ocorrencias(
+                    dados_a, intervalo_anos=intervalo_comparacao
+                )
+                dados_b = filtrar_ocorrencias(
+                    dados_b, intervalo_anos=intervalo_comparacao
+                )
+
+            comparacao = comparar_paises(
+                dados_a,
+                codigo_comparacao_a,
+                nomes_por_codigo[codigo_comparacao_a],
+                dados_b,
+                codigo_comparacao_b,
+                nomes_por_codigo[codigo_comparacao_b],
+            )
+            resumo_a = comparacao.resumo.iloc[0]
+            resumo_b = comparacao.resumo.iloc[1]
+            metricas_comparacao = st.columns(4)
+            metricas_comparacao[0].metric(
+                f"Espécies — {codigo_comparacao_a}",
+                formatar_numero(int(resumo_a["species"])),
+            )
+            metricas_comparacao[1].metric(
+                f"Espécies — {codigo_comparacao_b}",
+                formatar_numero(int(resumo_b["species"])),
+            )
+            metricas_comparacao[2].metric(
+                f"Ocorrências — {codigo_comparacao_a}",
+                formatar_numero(int(resumo_a["occurrences"])),
+            )
+            metricas_comparacao[3].metric(
+                f"Ocorrências — {codigo_comparacao_b}",
+                formatar_numero(int(resumo_b["occurrences"])),
+            )
+
+            st.subheader("Distribuição temporal")
+            coluna_bruta, coluna_normalizada = st.columns(2)
+            with coluna_bruta:
+                figura = px.line(
+                    comparacao.temporal,
+                    x="event_year",
+                    y="occurrence_count",
+                    color="country_name",
+                    markers=True,
+                    labels={
+                        "event_year": "Ano",
+                        "occurrence_count": "Ocorrências",
+                        "country_name": "País",
+                    },
+                    title="Contagens anuais",
+                )
+                st.plotly_chart(
+                    layout_grafico(figura, 410),
+                    width="stretch",
+                    config={"displayModeBar": False},
+                )
+            with coluna_normalizada:
+                figura = px.line(
+                    comparacao.temporal,
+                    x="event_year",
+                    y="sample_percentage",
+                    color="country_name",
+                    markers=True,
+                    labels={
+                        "event_year": "Ano",
+                        "sample_percentage": "% da amostra do país",
+                        "country_name": "País",
+                    },
+                    title="Distribuição anual normalizada",
+                )
+                st.plotly_chart(
+                    layout_grafico(figura, 410),
+                    width="stretch",
+                    config={"displayModeBar": False},
+                )
+
+            st.subheader("Métricas normalizadas e cobertura")
+            tabela_normalizada = comparacao.resumo[
+                [
+                    "country_name",
+                    "occurrences_per_species",
+                    "years_with_records",
+                    "period",
+                    "records_with_date_pct",
+                    "records_with_coordinates_pct",
+                ]
+            ].rename(
+                columns={
+                    "country_name": "País",
+                    "occurrences_per_species": "Registros por espécie",
+                    "years_with_records": "Anos com registros",
+                    "period": "Período",
+                    "records_with_date_pct": "% com data",
+                    "records_with_coordinates_pct": "% com coordenadas",
+                }
+            )
+            st.dataframe(
+                tabela_normalizada,
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "Registros por espécie": st.column_config.NumberColumn(
+                        format="%.1f"
+                    ),
+                    "% com data": st.column_config.NumberColumn(format="%.1f%%"),
+                    "% com coordenadas": st.column_config.NumberColumn(format="%.1f%%"),
+                },
+            )
+
+            st.subheader("Espécies compartilhadas e exclusivas")
+            colunas_sobreposicao = st.columns(4)
+            colunas_sobreposicao[0].metric(
+                "Compartilhadas",
+                formatar_numero(len(comparacao.especies_compartilhadas)),
+            )
+            colunas_sobreposicao[1].metric(
+                f"Exclusivas — {codigo_comparacao_a}",
+                formatar_numero(len(comparacao.especies_exclusivas_a)),
+            )
+            colunas_sobreposicao[2].metric(
+                f"Exclusivas — {codigo_comparacao_b}",
+                formatar_numero(len(comparacao.especies_exclusivas_b)),
+            )
+            colunas_sobreposicao[3].metric(
+                "Similaridade de Jaccard",
+                f"{comparacao.similaridade_jaccard:.1f}%",
+            )
+
+            tabela_compartilhadas = comparacao.especies_compartilhadas.rename(
+                columns={
+                    "species_key": "Chave taxonômica",
+                    "canonical_name": "Nome científico",
+                    "occurrences_a": f"Ocorrências — {codigo_comparacao_a}",
+                    "occurrences_b": f"Ocorrências — {codigo_comparacao_b}",
+                }
+            )
+            coluna_compartilhadas, coluna_exclusivas = st.columns([1.25, 1])
+            with coluna_compartilhadas:
+                st.caption("Espécies presentes nos dois conjuntos")
+                st.dataframe(
+                    tabela_compartilhadas,
+                    hide_index=True,
+                    width="stretch",
+                    height=360,
+                )
+            with coluna_exclusivas:
+                st.caption("Espécies exclusivas por conjunto")
+                exclusivas_a = comparacao.especies_exclusivas_a.assign(
+                    country=codigo_comparacao_a
+                ).rename(columns={"occurrences_a": "occurrence_count"})
+                exclusivas_b = comparacao.especies_exclusivas_b.assign(
+                    country=codigo_comparacao_b
+                ).rename(columns={"occurrences_b": "occurrence_count"})
+                exclusivas = pd.concat(
+                    [exclusivas_a, exclusivas_b], ignore_index=True
+                ).rename(
+                    columns={
+                        "species_key": "Chave taxonômica",
+                        "canonical_name": "Nome científico",
+                        "occurrence_count": "Ocorrências",
+                        "country": "País",
+                    }
+                )
+                st.dataframe(
+                    exclusivas,
+                    hide_index=True,
+                    width="stretch",
+                    height=360,
+                )
+
+            recebidos_a = (
+                fonte_a.resumo_importacao.registros_recebidos
+                if fonte_a.resumo_importacao
+                else len(fonte_a.dados)
+            )
+            recebidos_b = (
+                fonte_b.resumo_importacao.registros_recebidos
+                if fonte_b.resumo_importacao
+                else len(fonte_b.dados)
+            )
+            st.html(
+                f"""
+                <div class="quality-note">
+                <b>Cuidado metodológico.</b> Mais ocorrências ou espécies registradas
+                não significam maior abundância nem maior biodiversidade real. A
+                comparação usa amostras de {formatar_numero(recebidos_a)} registros
+                recebidos para {nomes_por_codigo[codigo_comparacao_a]} e
+                {formatar_numero(recebidos_b)} para
+                {nomes_por_codigo[codigo_comparacao_b]}. Diferenças também refletem
+                área, cobertura temporal, esforço de coleta, instituições participantes
+                e frequência de publicação no GBIF. A curva normalizada mostra a
+                distribuição interna da amostra, não corrige integralmente esses vieses.
+                </div>
+                """
+            )
+
 with aba_qualidade:
     qualidade = indicadores_qualidade(filtrados)
     total = max(len(filtrados), 1)
