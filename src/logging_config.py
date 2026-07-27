@@ -1,5 +1,7 @@
 import logging
 
+from src.security import FiltroSegredos
+
 
 def configurar_logging(verbose: bool = False) -> None:
     nivel = logging.DEBUG if verbose else logging.INFO
@@ -9,3 +11,5 @@ def configurar_logging(verbose: bool = False) -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         force=True,
     )
+    for manipulador in logging.getLogger().handlers:
+        manipulador.addFilter(FiltroSegredos())

@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pandas as pd
 
@@ -10,6 +10,7 @@ from src.dashboard_data import (
     calcular_indicadores,
     carregar_csv,
     carregar_dados_dashboard,
+    carregar_postgresql_com_resumo,
     catalogo_taxonomico,
     comparar_paises,
     consulta_dashboard,
@@ -18,6 +19,7 @@ from src.dashboard_data import (
     frequencia_alertas,
     indicadores_qualidade,
     normalizar_dados,
+    preparar_pontos_mapa,
     ranking_especies,
     serie_anual,
     serie_mensal,
@@ -101,6 +103,8 @@ class TestDadosDashboard(unittest.TestCase):
         consulta = consulta_dashboard("biodiversity")
         self.assertIn("JOIN biodiversity.taxa", consulta)
         self.assertIn("WHERE o.country_code = %s", consulta)
+        self.assertIn("COUNT(*) OVER() AS total_disponivel", consulta)
+        self.assertIn("LIMIT %s", consulta)
         with self.assertRaises(ValueError):
             consulta_dashboard("biodiversity;drop")
 
@@ -124,6 +128,70 @@ class TestDadosDashboard(unittest.TestCase):
         )
 
         self.assertEqual(filtrados["gbif_id"].tolist(), [3])
+
+        with self.assertRaisesRegex(ValueError, "início"):
+            filtrar_ocorrencias(self.dados, intervalo_anos=(2022, 2020))
+        with self.assertRaisesRegex(ValueError, "1600 e 2200"):
+            filtrar_ocorrencias(self.dados, intervalo_anos=(1500, 2020))
+
+    def test_agrega_mapa_acima_do_limite_sem_perder_contagens(self):
+        grande = pd.concat([self.dados] * 40, ignore_index=True)
+        grande["gbif_id"] = range(len(grande))
+        grande["decimal_latitude"] = [
+            -30 + indice * 0.01 for indice in range(len(grande))
+        ]
+        grande["decimal_longitude"] = [
+            -60 + indice * 0.01 for indice in range(len(grande))
+        ]
+
+        pontos, agregado = preparar_pontos_mapa(grande, limite=16)
+        pequenos, pequenos_agregados = preparar_pontos_mapa(self.dados, limite=16)
+
+        self.assertTrue(agregado)
+        self.assertLessEqual(len(pontos), 16)
+        self.assertEqual(int(pontos["map_occurrence_count"].sum()), len(grande))
+        self.assertFalse(pequenos_agregados)
+        self.assertEqual(len(pequenos), len(self.dados))
+
+    @patch("src.dashboard_data._carregar_resumo_importacao_conexao")
+    @patch("src.dashboard_data._carregar_postgresql_conexao")
+    @patch("src.dashboard_data.psycopg.connect")
+    def test_carrega_dados_e_resumo_em_uma_unica_conexao(
+        self, conectar, carregar_dados, carregar_resumo
+    ):
+        conexao = Mock()
+        conectar.return_value.__enter__.return_value = conexao
+        carregar_dados.return_value = self.dados
+        carregar_resumo.return_value = None
+
+        dados, resumo = carregar_postgresql_com_resumo(
+            "postgresql://teste", "biodiversity", "BR", limite=100
+        )
+
+        self.assertIs(dados, self.dados)
+        self.assertIsNone(resumo)
+        conectar.assert_called_once()
+        carregar_dados.assert_called_once_with(conexao, "biodiversity", "BR", 100)
+        carregar_resumo.assert_called_once_with(conexao, "biodiversity", "BR")
+        with self.assertRaisesRegex(ValueError, "entre 1 e 100000"):
+            carregar_postgresql_com_resumo(
+                "postgresql://teste", "biodiversity", "BR", limite=0
+            )
+
+    def test_avisa_quando_consulta_postgresql_foi_limitada(self):
+        dados = dados_dashboard()
+        dados.attrs["total_disponivel"] = 100
+        with patch(
+            "src.dashboard_data.carregar_postgresql_com_resumo",
+            return_value=(dados, None),
+        ):
+            resultado = carregar_dados_dashboard(
+                "postgresql://teste", "biodiversity", codigo_pais="BR"
+            )
+
+        self.assertTrue(resultado.limitado)
+        self.assertEqual(resultado.total_disponivel, 100)
+        self.assertIn("limitada a 3 de 100", resultado.aviso)
 
     def test_seleciona_uma_ou_varias_especies_pela_chave_aceita(self):
         uma = filtrar_ocorrencias(self.dados, chaves_especies=["A"])

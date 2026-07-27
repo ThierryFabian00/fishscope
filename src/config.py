@@ -35,6 +35,9 @@ LIMITE_CONSULTA_PADRAO = 10_000
 LIMITE_PADRAO = LIMITE_CONSULTA_PADRAO  # Compatibilidade com a configuração inicial.
 GRUPO_TAXONOMICO = "Actinopterygii"
 LIMITE_AMOSTRA_PEIXES = 5_000
+LIMITE_REGISTROS_DASHBOARD = 50_000
+LIMITE_PONTOS_MAPA = 5_000
+LIMITE_RESULTADOS_SQL = 1_000
 
 CHECKLIST_GBIF = "7ddf754f-d193-4cc9-b351-99906754a03b"
 GRUPOS_PEIXES: Mapping[str, str] = MappingProxyType(
@@ -73,6 +76,10 @@ def _limite_consulta_padrao() -> int:
     if os.getenv("LIMITE_CONSULTA_PADRAO") is not None:
         return _inteiro_positivo("LIMITE_CONSULTA_PADRAO", LIMITE_CONSULTA_PADRAO)
     return _inteiro_positivo("LIMITE_PADRAO", LIMITE_CONSULTA_PADRAO)
+
+
+def limite_registros_dashboard() -> int:
+    return _inteiro_positivo("LIMITE_REGISTROS_DASHBOARD", LIMITE_REGISTROS_DASHBOARD)
 
 
 @dataclass(frozen=True)

@@ -26,6 +26,7 @@ flowchart LR
 | `src.prepare_boundary` | Prepara o limite oficial da Região Hidrográfica do Paraná. |
 | `src.transform_fish` | Normaliza taxonomia, datas, origem, licença e recorte espacial. |
 | `src.analysis` | Produz agregações, qualidade, mapas e relatório exploratório. |
+| `src.security` | Mascara credenciais em erros e registros de log. |
 | `src.export_sample` | Gera amostra pública restrita a CC0 e CC BY. |
 | `src.load` | Cria/migra o schema PostgreSQL e executa `UPSERT`. |
 | `src.query_db` | Executa consultas analíticas parametrizadas. |

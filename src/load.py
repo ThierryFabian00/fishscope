@@ -14,6 +14,7 @@ from src.config import ARQUIVO_ENV, PAIS_PADRAO, TAMANHO_LOTE_PADRAO
 from src.config import SCHEMA_PADRAO as SCHEMA_PADRAO
 from src.database import ConfiguracaoBanco, validar_schema
 from src.logging_config import configurar_logging
+from src.security import mensagem_erro_segura
 from src.services.country_service import normalizar_codigo_pais, obter_pais
 from src.transform_fish import ARQUIVO_ESPECIES, ARQUIVO_OCORRENCIAS
 
@@ -566,7 +567,7 @@ def main() -> None:
         return
 
     try:
-        database_url = configuracao_banco.exigir_url()
+        database_url = configuracao_banco.exigir_url_escrita()
     except ValueError as erro:
         raise SystemExit(str(erro)) from erro
 
@@ -583,7 +584,8 @@ def main() -> None:
             )
             verificacao = verificar_carga(conexao, schema)
     except psycopg.Error as erro:
-        raise SystemExit(f"Falha na carga PostgreSQL: {erro}") from erro
+        mensagem = mensagem_erro_segura(erro, "Erro de conexão ou escrita.")
+        raise SystemExit(f"Falha na carga PostgreSQL: {mensagem}") from erro
 
     LOGGER.info("Países processados: %s", resultado["countries"])
     LOGGER.info("Táxons processados: %s", resultado["taxa"])

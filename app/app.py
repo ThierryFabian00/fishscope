@@ -1,5 +1,6 @@
 import colorsys
 import hashlib
+import logging
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.config import PAIS_PADRAO  # noqa: E402
+from src.config import (  # noqa: E402
+    LIMITE_PONTOS_MAPA,
+    LIMITE_RESULTADOS_SQL,
+    PAIS_PADRAO,
+)
 from src.dashboard_data import (  # noqa: E402
     ResultadoFonte,
     calcular_indicadores,
@@ -27,6 +32,7 @@ from src.dashboard_data import (  # noqa: E402
     filtrar_ocorrencias,
     frequencia_alertas,
     indicadores_qualidade,
+    preparar_pontos_mapa,
     ranking_especies,
     serie_anual,
     serie_temporal,
@@ -36,6 +42,7 @@ from src.database import ConfiguracaoBanco  # noqa: E402
 from src.filter_basin import ARQUIVO_LIMITE  # noqa: E402
 from src.gbif_client import ErroGBIF  # noqa: E402
 from src.report import gerar_relatorio_pdf  # noqa: E402
+from src.security import mensagem_erro_segura  # noqa: E402
 from src.services.country_service import listar_paises, obter_pais  # noqa: E402
 from src.sync_data import (  # noqa: E402
     ProgressoSincronizacao,
@@ -43,6 +50,7 @@ from src.sync_data import (  # noqa: E402
 )
 
 CONFIGURACAO_BANCO = ConfiguracaoBanco.do_ambiente()
+LOGGER = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="Peixes da Bacia do Paraná",
@@ -126,14 +134,14 @@ def aplicar_estilo() -> None:
     )
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=12, show_spinner=False)
 def obter_dados(schema: str, codigo_pais: str) -> ResultadoFonte:
     return carregar_dados_dashboard(
         CONFIGURACAO_BANCO.database_url, schema, codigo_pais=codigo_pais
     )
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(max_entries=2, show_spinner=False)
 def obter_limite_geojson() -> dict[str, Any] | None:
     if not ARQUIVO_LIMITE.exists():
         return None
@@ -142,7 +150,7 @@ def obter_limite_geojson() -> dict[str, Any] | None:
     return limite.__geo_interface__
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=20, show_spinner=False)
 def obter_relatorio_pdf(
     dados: pd.DataFrame,
     pais_nome: str,
@@ -194,17 +202,26 @@ def criar_mapa(
     exibir_limite: bool = True,
     modo: str = "Pontos por espécie",
 ) -> pdk.Deck | None:
-    pontos = dados.dropna(subset=["decimal_latitude", "decimal_longitude"]).copy()
+    pontos, agregado = preparar_pontos_mapa(dados)
     if pontos.empty:
         return None
     modos = {"Pontos por espécie", "Mapa de calor", "Agrupamento espacial"}
     if modo not in modos:
         raise ValueError(f"Modo de mapa inválido: {modo}")
-    pontos["point_color"] = pontos["species_key"].map(cor_especie)
+    pontos["point_color"] = (
+        [[15, 118, 110, 190]] * len(pontos)
+        if agregado
+        else pontos["species_key"].map(cor_especie)
+    )
     pontos["origin_display"] = pontos["origin_status"].map(ROTULOS_ORIGEM)
     pontos["state_display"] = pontos["state_normalized"].map(rotulo_estado)
     pontos["point_color"] = pontos["point_color"].apply(
         lambda cor: cor if isinstance(cor, list) else CORES_ORIGEM["UNKNOWN"]
+    )
+    pontos["point_radius"] = (
+        2600 * (1 + pontos["map_occurrence_count"].pow(0.5).clip(upper=5))
+        if agregado
+        else 2600
     )
     camadas = []
     limite = obter_limite_geojson() if exibir_limite else None
@@ -228,7 +245,7 @@ def criar_mapa(
                 pontos,
                 get_position="[decimal_longitude, decimal_latitude]",
                 get_fill_color="point_color",
-                get_radius=2600,
+                get_radius="point_radius",
                 radius_min_pixels=3,
                 radius_max_pixels=11,
                 stroked=True,
@@ -245,27 +262,31 @@ def criar_mapa(
                 "HeatmapLayer",
                 pontos,
                 get_position="[decimal_longitude, decimal_latitude]",
-                get_weight=1,
+                get_weight="map_occurrence_count",
                 radius_pixels=45,
                 intensity=1,
                 threshold=0.03,
             )
         )
     else:
-        camadas.append(
-            pdk.Layer(
-                "HexagonLayer",
-                pontos,
-                get_position="[decimal_longitude, decimal_latitude]",
-                radius=12000,
-                elevation_scale=20,
-                elevation_range=[0, 1000],
-                extruded=True,
-                pickable=True,
-                auto_highlight=True,
-                coverage=0.88,
+        tipo_camada = "ColumnLayer" if agregado else "HexagonLayer"
+        argumentos_camada = {
+            "get_position": "[decimal_longitude, decimal_latitude]",
+            "radius": 12000,
+            "elevation_scale": 20,
+            "extruded": True,
+            "pickable": True,
+            "auto_highlight": True,
+            "coverage": 0.88,
+        }
+        if agregado:
+            argumentos_camada.update(
+                get_elevation="map_occurrence_count",
+                get_fill_color=[15, 118, 110, 190],
             )
-        )
+        else:
+            argumentos_camada["elevation_range"] = [0, 1000]
+        camadas.append(pdk.Layer(tipo_camada, pontos, **argumentos_camada))
     zoom = 5.0 if len(pontos) >= 50 else 6.2
     vista = pdk.ViewState(
         latitude=float(pontos["decimal_latitude"].mean()),
@@ -282,7 +303,15 @@ def criar_mapa(
                 "html": "<b>{canonical_name}</b><br/>{state_display}<br/>{event_year} · {basis_of_record}<br/>GBIF {gbif_id}",
                 "style": {"backgroundColor": "#17211d", "color": "white"},
             }
-            if modo == "Pontos por espécie"
+            if modo == "Pontos por espécie" and not agregado
+            else {
+                "html": (
+                    "<b>{map_occurrence_count} ocorrências agregadas</b><br/>"
+                    "{map_species_count} espécies"
+                ),
+                "style": {"backgroundColor": "#17211d", "color": "white"},
+            }
+            if agregado
             else {
                 "html": "<b>{elevationValue} ocorrências próximas</b>",
                 "style": {"backgroundColor": "#17211d", "color": "white"},
@@ -308,11 +337,18 @@ with st.sidebar:
         "Atualizar dados do GBIF",
         icon=":material/refresh:",
         width="stretch",
+        disabled=CONFIGURACAO_BANCO.database_write_url is None,
+        help=(
+            "Defina DATABASE_WRITE_URL para habilitar atualizações."
+            if CONFIGURACAO_BANCO.database_write_url is None
+            else None
+        ),
     )
+    if CONFIGURACAO_BANCO.database_write_url is None:
+        st.caption("Atualização desativada: credencial de escrita não configurada.")
 
 pais = obter_pais(codigo_pais)
 schema = CONFIGURACAO_BANCO.schema
-chave_cache = f"{schema}:{pais.codigo_iso}"
 sincronizacao = None
 widget_progresso: dict[str, Any] = {"valor": None}
 
@@ -329,40 +365,40 @@ def atualizar_progresso(evento: ProgressoSincronizacao) -> None:
         widget_progresso["valor"].progress(valor, text=evento.mensagem)
 
 
-database_url = CONFIGURACAO_BANCO.database_url
-deve_consultar_cache = database_url is not None and (
-    forcar_atualizacao or st.session_state.get("cache_verificado") != chave_cache
-)
-if deve_consultar_cache:
+database_write_url = CONFIGURACAO_BANCO.database_write_url
+if forcar_atualizacao and database_write_url:
     try:
-        assert database_url is not None
         sincronizacao = sincronizar_dados_pais(
-            database_url,
+            database_write_url,
             schema,
             pais.codigo_iso,
             forcar_atualizacao=forcar_atualizacao,
             callback=atualizar_progresso,
         )
-        st.session_state["cache_verificado"] = chave_cache
         if sincronizacao.fonte == "GBIF":
             obter_dados.clear()
             st.sidebar.success(
                 f"Atualização concluída: {sincronizacao.registros_salvos:,} registros."
             )
     except (ErroGBIF, psycopg.Error, ValueError) as erro:
-        st.sidebar.error(f"Não foi possível atualizar os dados: {erro}")
+        mensagem = mensagem_erro_segura(erro, "Falha inesperada na atualização.")
+        LOGGER.error("Falha controlada na atualização: %s", mensagem)
+        st.sidebar.error(f"Não foi possível atualizar os dados: {mensagem}")
     finally:
         if widget_progresso["valor"] is not None:
             widget_progresso["valor"].empty()
 elif forcar_atualizacao:
     st.sidebar.warning(
-        "Defina DATABASE_URL para atualizar os dados diretamente do GBIF."
+        "Atualização indisponível: defina DATABASE_WRITE_URL com uma credencial "
+        "PostgreSQL de escrita. A consulta normal usa apenas DATABASE_URL."
     )
 
 try:
     resultado = obter_dados(schema, pais.codigo_iso)
 except (FileNotFoundError, ValueError) as erro:
-    st.error(f"Dados indisponíveis: {erro}")
+    mensagem = mensagem_erro_segura(erro, "A fonte de dados não está disponível.")
+    LOGGER.error("Falha controlada ao carregar dados: %s", mensagem)
+    st.error(f"Dados indisponíveis: {mensagem}")
     st.stop()
 
 dados = resultado.dados
@@ -559,14 +595,26 @@ with aba_mapa:
         exibir_limite=pais.codigo_iso == PAIS_PADRAO,
         modo=modo_mapa,
     )
+    registros_mapa = filtrados.dropna(subset=["decimal_latitude", "decimal_longitude"])
+    if len(registros_mapa) > LIMITE_PONTOS_MAPA:
+        st.caption(
+            f"Para manter o mapa responsivo, {formatar_numero(len(registros_mapa))} "
+            f"registros foram agregados em até {formatar_numero(LIMITE_PONTOS_MAPA)} "
+            "células espaciais."
+        )
     if mapa:
         st.pydeck_chart(mapa, width="stretch", height=610)
     else:
         st.info("O recorte atual não possui coordenadas válidas.")
 
-    registros_mapa = filtrados.dropna(subset=["decimal_latitude", "decimal_longitude"])
-    ids_mapa = registros_mapa["gbif_id"].tolist()
-    nomes_ids = registros_mapa.set_index("gbif_id")["canonical_name"].to_dict()
+    registros_detalhe = registros_mapa.head(LIMITE_RESULTADOS_SQL)
+    if len(registros_mapa) > len(registros_detalhe):
+        st.caption(
+            "O seletor de detalhes mostra as primeiras "
+            f"{formatar_numero(len(registros_detalhe))} ocorrências do recorte."
+        )
+    ids_mapa = registros_detalhe["gbif_id"].tolist()
+    nomes_ids = registros_detalhe.set_index("gbif_id")["canonical_name"].to_dict()
     ocorrencia_selecionada = st.selectbox(
         "Detalhes de uma ocorrência",
         [None, *ids_mapa],
@@ -578,8 +626,8 @@ with aba_mapa:
         ),
     )
     if ocorrencia_selecionada is not None:
-        detalhe = registros_mapa.loc[
-            registros_mapa["gbif_id"].eq(ocorrencia_selecionada),
+        detalhe = registros_detalhe.loc[
+            registros_detalhe["gbif_id"].eq(ocorrencia_selecionada),
             [
                 "gbif_id",
                 "canonical_name",
@@ -1184,7 +1232,10 @@ with aba_dados:
         placeholder="Espécie, localidade ou unidade administrativa",
     )
     tabela = filtrados.copy()
-    if busca.strip():
+    if len(busca.strip()) > 200:
+        st.warning("A busca deve ter no máximo 200 caracteres.")
+        tabela = tabela.iloc[0:0]
+    elif busca.strip():
         termo = busca.strip()
         mascara_busca = (
             tabela["canonical_name"]
@@ -1225,9 +1276,16 @@ with aba_dados:
     )
     tabela_exibicao["Origem"] = tabela_exibicao["Origem"].map(ROTULOS_ORIGEM)
     tabela_exibicao["Unidade"] = tabela_exibicao["Unidade"].map(rotulo_estado)
+    tabela_navegador = tabela_exibicao.head(LIMITE_RESULTADOS_SQL)
     st.caption(f"{formatar_numero(len(tabela_exibicao))} registros")
+    if len(tabela_exibicao) > len(tabela_navegador):
+        st.caption(
+            "A tabela mostra os primeiros "
+            f"{formatar_numero(len(tabela_navegador))} registros; o CSV preserva "
+            "todo o recorte filtrado."
+        )
     st.dataframe(
-        tabela_exibicao,
+        tabela_navegador,
         hide_index=True,
         width="stretch",
         height=540,

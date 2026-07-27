@@ -78,8 +78,9 @@ Faça backup antes de aplicar qualquer migração em um banco compartilhado.
 
 ## Configuração
 
-O projeto lê `DATABASE_URL` e `DB_SCHEMA` de `.env`. Para um PostgreSQL
-local:
+O projeto lê `DATABASE_URL`, `DATABASE_WRITE_URL` e `DB_SCHEMA` de `.env`.
+`DATABASE_URL` deve ser somente leitura; a segunda URL pertence ao proprietário
+do schema e só é usada para carga ou atualização. Para um PostgreSQL local:
 
 ```powershell
 Copy-Item .env.example .env
@@ -87,7 +88,9 @@ docker compose up -d db
 docker compose ps
 ```
 
-Ajuste a senha e a URL no arquivo local. O schema padrão é `biodiversity`.
+Ajuste as senhas e URLs no arquivo local. O schema padrão é `biodiversity`.
+Depois da primeira carga, execute `sql/create_dashboard_role.sql` conforme o
+procedimento de [desempenho e segurança](DESEMPENHO_SEGURANCA_V2.md).
 
 ## Validação e carga
 

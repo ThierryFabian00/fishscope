@@ -29,10 +29,12 @@ para evitar regressões.
 | `PAIS_PADRAO` | `BR` | País usado quando nenhum código é informado |
 | `ESPECIE_PADRAO` | `Oreochromis niloticus` | Consulta inicial de uma espécie |
 | `LIMITE_CONSULTA_PADRAO` | `10000` | Teto total de registros por consulta do MVP |
+| `LIMITE_REGISTROS_DASHBOARD` | `50000` | Máximo carregado por país no dashboard |
 | `TAMANHO_PAGINA_PADRAO` | `300` | Registros solicitados por página da API |
 | `GRUPO_TAXONOMICO` | `Actinopterygii` | Grupo inicial de peixes |
 | `GBIF_API` | `https://api.gbif.org/v1` | Endpoint base do GBIF |
-| `DATABASE_URL` | sem valor seguro | Conexão PostgreSQL da aplicação |
+| `DATABASE_URL` | sem valor seguro | Conexão PostgreSQL somente leitura do dashboard |
+| `DATABASE_WRITE_URL` | sem valor seguro | Conexão proprietária para carga e atualização explícita |
 | `DB_SCHEMA` | `biodiversity` | Schema validado do banco |
 
 A coleta interativa usa páginas de até 300 registros, limite de 5.000 registros

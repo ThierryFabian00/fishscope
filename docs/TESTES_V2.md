@@ -27,6 +27,7 @@ diretamente pela biblioteca padrão.
 | API indisponível | timeout, falha de conexão e HTTP 503 convertidos em `ErroGBIF` claro |
 | País sem resultados | sincronização interrompida antes de escrever arquivos ou alterar o cache; dashboard exibe aviso |
 | Filtros do dashboard | combinação unitária e interação Streamlit para espécie, origem, período, tipo e unidade administrativa |
+| Desempenho e segurança | teto SQL, conexão única, agregação espacial, período inválido, papel somente leitura e redação de segredos |
 
 ## PostgreSQL real
 
