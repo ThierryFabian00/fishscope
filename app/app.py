@@ -35,6 +35,7 @@ from src.dashboard_data import (  # noqa: E402
 from src.database import ConfiguracaoBanco  # noqa: E402
 from src.filter_basin import ARQUIVO_LIMITE  # noqa: E402
 from src.gbif_client import ErroGBIF  # noqa: E402
+from src.report import gerar_relatorio_pdf  # noqa: E402
 from src.services.country_service import listar_paises, obter_pais  # noqa: E402
 from src.sync_data import (  # noqa: E402
     ProgressoSincronizacao,
@@ -139,6 +140,23 @@ def obter_limite_geojson() -> dict[str, Any] | None:
     limite = gpd.read_file(ARQUIVO_LIMITE, engine="fiona").to_crs("EPSG:4326")
     limite["geometry"] = limite.geometry.simplify(0.01, preserve_topology=True)
     return limite.__geo_interface__
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def obter_relatorio_pdf(
+    dados: pd.DataFrame,
+    pais_nome: str,
+    pais_codigo: str,
+    fonte: str,
+    filtros: tuple[tuple[str, str], ...],
+) -> bytes:
+    return gerar_relatorio_pdf(
+        dados,
+        pais_nome=pais_nome,
+        pais_codigo=pais_codigo,
+        fonte=fonte,
+        filtros=dict(filtros),
+    )
 
 
 def formatar_numero(valor: int) -> str:
@@ -465,6 +483,7 @@ if filtrados.empty:
     aba_temporal,
     aba_especies,
     aba_comparacao,
+    aba_relatorio,
     aba_qualidade,
     aba_dados,
 ) = st.tabs(
@@ -474,6 +493,7 @@ if filtrados.empty:
         "Temporal",
         "Espécies",
         "Comparação",
+        "Relatório",
         "Qualidade",
         "Dados",
     ]
@@ -966,6 +986,56 @@ with aba_comparacao:
                 </div>
                 """
             )
+
+with aba_relatorio:
+    st.subheader("Relatório automático")
+    st.caption(
+        "O PDF reproduz o recorte atual e reúne resumo, indicadores, gráficos, "
+        "mapa, metodologia, limitações, fonte e data de geração."
+    )
+    nomes_selecionados = [nomes_especies[chave] for chave in especies]
+    periodo_relatorio = (
+        f"{intervalo_anos[0]}–{intervalo_anos[1]}"
+        if intervalo_anos
+        else "Todos os anos disponíveis"
+    )
+    filtros_relatorio = {
+        "País": f"{pais.nome} ({pais.codigo_iso})",
+        "Espécies": ", ".join(nomes_selecionados) or "Todas as espécies",
+        "Período": periodo_relatorio,
+        "Origem": ", ".join(ROTULOS_ORIGEM.get(item, item) for item in origens)
+        or "Todas as classificações",
+        "Tipo de registro": ", ".join(tipos) or "Todos os tipos",
+        "Unidade administrativa": ", ".join(rotulo_estado(item) for item in estados)
+        or "Todas as unidades",
+        "Atualização da fonte": ultima_atualizacao,
+    }
+    st.markdown(
+        f"**Consulta:** {pais.nome} · {periodo_relatorio} · "
+        f"{formatar_numero(indicadores['occurrences'])} ocorrências · "
+        f"{formatar_numero(indicadores['species'])} espécies"
+    )
+    with st.spinner("Preparando relatório reproduzível..."):
+        relatorio_pdf = obter_relatorio_pdf(
+            filtrados,
+            pais.nome,
+            pais.codigo_iso,
+            f"GBIF via {resultado.fonte}",
+            tuple(filtros_relatorio.items()),
+        )
+    sufixo_periodo = periodo_relatorio.replace("–", "-").replace(" ", "_")
+    st.download_button(
+        "Baixar relatório PDF",
+        data=relatorio_pdf,
+        file_name=f"relatorio_peixes_{pais.codigo_iso.lower()}_{sufixo_periodo}.pdf",
+        mime="application/pdf",
+        icon=":material/picture_as_pdf:",
+        type="primary",
+    )
+    st.caption(
+        "A assinatura incluída no PDF identifica o conjunto de GBIF IDs usado. "
+        "Para reproduzir o relatório, reaplique os filtros registrados usando a mesma fonte."
+    )
 
 with aba_qualidade:
     qualidade = indicadores_qualidade(filtrados)

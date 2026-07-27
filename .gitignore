@@ -1,6 +1,7 @@
 ﻿.venv/
 .venv_broken_*/
 __pycache__/
+.pytest_cache/
 *.pyc
 .env
 data/raw/*.csv

@@ -267,6 +267,19 @@ class TestTransformacaoPeixes(unittest.TestCase):
         self.assertEqual(ocorrencias["year"].tolist(), [2020, 2021])
         self.assertEqual(ocorrencias["month"].tolist(), [1, 3])
 
+    def test_remove_gbif_id_duplicado_antes_da_carga(self):
+        registro = registro_especie(1)
+        duplicado = registro.copy()
+
+        ocorrencias, especies, problemas, resumo = transformar_registros(
+            [registro, duplicado], None
+        )
+
+        self.assertEqual(ocorrencias["gbifID"].tolist(), [1])
+        self.assertEqual(len(especies), 1)
+        self.assertTrue(problemas.empty)
+        self.assertEqual(resumo["normalized"], 1)
+
     def test_classifica_origem_sem_inferir_ausencia(self):
         self.assertEqual(classificar_origem([]), "UNKNOWN")
         self.assertEqual(classificar_origem(["NATIVE"]), "NATIVE")

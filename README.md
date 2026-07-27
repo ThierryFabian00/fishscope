@@ -85,7 +85,7 @@ separadamente:
 ```powershell
 python -m ruff check src app tests
 python -m ruff format --check src app tests
-python -m unittest discover -s tests -v
+python -m pytest -v
 python -m pip check
 ```
 
@@ -128,6 +128,8 @@ fonte e ausencia eventual de metadados de publicacao na resposta da API.
 - [Qualidade dos dados](docs/QUALIDADE_DADOS_V2.md)
 - [Dashboard global](docs/DASHBOARD.md)
 - [Comparação entre países](docs/COMPARACAO_PAISES_V2.md)
+- [Relatório automático em PDF](docs/RELATORIO_AUTOMATICO_V2.md)
+- [Testes e matriz de cobertura](docs/TESTES_V2.md)
 - [Citacao e licencas](docs/CITACAO_E_LICENCAS.md)
 
 Versao atual: **1.0.0**. Consulte o [historico de mudancas](CHANGELOG.md) e o
