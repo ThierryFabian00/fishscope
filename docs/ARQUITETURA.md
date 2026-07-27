@@ -77,6 +77,6 @@ O workflow `.github/workflows/ci.yml` executa em Python 3.12:
 1. instalação de dependências;
 2. lint com Ruff;
 3. verificação de formatação;
-4. testes com `unittest`.
+4. testes `unittest` executados e reportados pelo `pytest`.
 
 Testes que exigem PostgreSQL real ou dados locais são ignorados automaticamente quando a fonte não está configurada.

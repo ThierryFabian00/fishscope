@@ -104,6 +104,28 @@ class TestSincronizacao(unittest.TestCase):
         self.assertEqual(eventos[0].etapa, "cache")
         self.assertEqual(eventos[-1].etapa, "concluido")
 
+    @patch("src.sync_data.carregar_registros")
+    @patch("src.sync_data.salvar_resultado")
+    @patch("src.sync_data.buscar_ocorrencias_peixes")
+    @patch("src.sync_data._consultar_cache_com_estrutura")
+    @patch("src.sync_data.psycopg.connect")
+    def test_pais_sem_resultados_retorna_erro_claro_sem_alterar_cache(
+        self, conectar, consultar_cache, buscar_gbif, salvar, carregar
+    ):
+        consultar_cache.return_value = StatusCache("CH", 0, 0, None)
+        buscar_gbif.return_value = ResultadoPeixes([], 1, 0)
+
+        with self.assertRaisesRegex(
+            ValueError, "GBIF não retornou ocorrências para CH"
+        ):
+            sincronizar_dados_pais(
+                "postgresql://teste", "bio", "CH", forcar_atualizacao=True
+            )
+
+        conectar.assert_called_once_with("postgresql://teste")
+        salvar.assert_not_called()
+        carregar.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

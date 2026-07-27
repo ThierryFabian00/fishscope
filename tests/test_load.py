@@ -290,21 +290,30 @@ class TestIntegracaoPostgreSQL(unittest.TestCase):
                 caminho_ocorrencias = Path(pasta) / "occurrences.csv"
                 caminho_taxa.write_text("taxa", encoding="utf-8")
                 caminho_ocorrencias.write_text("occurrences", encoding="utf-8")
-                carregar_registros(
-                    conexao,
-                    taxa,
-                    ocorrencias,
-                    "biodiversity_test",
-                    100,
-                    caminho_taxa,
-                    caminho_ocorrencias,
-                )
+                for _ in range(2):
+                    carregar_registros(
+                        conexao,
+                        taxa,
+                        ocorrencias,
+                        "biodiversity_test",
+                        100,
+                        caminho_taxa,
+                        caminho_ocorrencias,
+                    )
             verificacao = verificar_carga(conexao, "biodiversity_test")
+            with conexao.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM biodiversity_test.occurrences "
+                    "WHERE gbif_key = %s",
+                    (10,),
+                )
+                ocorrencias_com_mesma_chave = cursor.fetchone()[0]
             self.assertEqual(verificacao["orphans"], 0)
             self.assertGreaterEqual(verificacao["countries"], 1)
             self.assertGreaterEqual(verificacao["taxa"], 1)
             self.assertGreaterEqual(verificacao["occurrences"], 1)
             self.assertGreaterEqual(verificacao["imports"], 1)
+            self.assertEqual(ocorrencias_com_mesma_chave, 1)
         finally:
             conexao.rollback()
             conexao.close()

@@ -81,6 +81,29 @@ class TestStreamlitApp(unittest.TestCase):
         app.multiselect[0].set_value(opcoes_especies[:2]).run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.multiselect[0].value), 2)
+        metricas_filtradas = {metrica.label: metrica.value for metrica in app.metric}
+        self.assertEqual(metricas_filtradas["Espécies"], "2")
+        self.assertLess(int(metricas_filtradas["Ocorrências"].replace(".", "")), 3764)
+
+        app.multiselect[0].set_value([]).run()
+        for rotulo in ("Origem", "Tipo de registro", "Unidade administrativa"):
+            seletor = next(item for item in app.multiselect if item.label == rotulo)
+            self.assertGreater(len(seletor.options), 0)
+            seletor.set_value([seletor.options[0]]).run()
+            self.assertFalse(app.exception)
+            seletor_atual = next(
+                item for item in app.multiselect if item.label == rotulo
+            )
+            self.assertEqual(len(seletor_atual.value), 1)
+            seletor_atual.set_value([]).run()
+
+        periodo = next(item for item in app.slider if item.label == "Período")
+        periodo.set_range(periodo.min, periodo.min).run()
+        self.assertFalse(app.exception)
+        periodo_atual = next(item for item in app.slider if item.label == "Período")
+        self.assertEqual(list(periodo_atual.value), [periodo.min, periodo.min])
+        periodo_atual.set_range(periodo_atual.min, periodo_atual.max).run()
+
         seletor_pais = next(item for item in app.selectbox if item.label == "País")
         seletor_pais.set_value("CH").run()
 

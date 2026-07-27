@@ -29,6 +29,23 @@ class TestClienteGBIF(unittest.TestCase):
             timeout=TIMEOUT_GBIF_SEGUNDOS,
         )
 
+    def test_converte_api_indisponivel_em_erro_controlado(self):
+        sessao = Mock()
+        sessao.get.side_effect = requests.ConnectionError("serviço indisponível")
+
+        with self.assertRaisesRegex(ErroGBIF, "Não foi possível conectar"):
+            requisitar_json(sessao, "https://api.gbif.org/v1/test", {})
+
+    def test_informa_codigo_do_erro_http(self):
+        sessao = Mock()
+        resposta = Mock(status_code=503)
+        sessao.get.return_value.raise_for_status.side_effect = requests.HTTPError(
+            response=resposta
+        )
+
+        with self.assertRaisesRegex(ErroGBIF, "erro HTTP 503"):
+            requisitar_json(sessao, "https://api.gbif.org/v1/test", {})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,7 @@ if (-not (Test-Path $python)) {
 
 & $python -m ruff check src app tests
 & $python -m ruff format --check src app tests
-& $python -m unittest discover -s tests -v
+& $python -m pytest -v
 & $python -m pip check
 
 if (Test-Path "data\processed\ocorrencias_peixes_bacia_parana.csv") {

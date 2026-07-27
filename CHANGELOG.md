@@ -10,13 +10,16 @@ Todas as alterações relevantes deste projeto são documentadas neste arquivo.
 - mapas de pontos por espécie, calor e agrupamento espacial;
 - detalhe selecionável de ocorrência;
 - séries anual, mensal e comparação temporal entre espécies;
-- catálogo taxonômico pesquisável e filtros globais de período e localização.
+- catálogo taxonômico pesquisável e filtros globais de período e localização;
 - comparação entre dois países com métricas brutas e normalizadas;
 - identificação de espécies compartilhadas e exclusivas por país;
-- aviso metodológico sobre esforço amostral e vieses de publicação.
+- aviso metodológico sobre esforço amostral e vieses de publicação;
 - relatório PDF reproduzível a partir dos filtros ativos;
 - gráficos, mapa, metodologia, limitações, fonte, data e assinatura dos
-  registros incluídos no relatório.
+  registros incluídos no relatório;
+- pytest configurado como executor oficial da suíte e da integração contínua;
+- testes de falha da API, país vazio, deduplicação, atualização idempotente e
+  filtros globais do dashboard.
 
 ## [1.0.0] - 2026-07-16
 
