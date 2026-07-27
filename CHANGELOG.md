@@ -19,7 +19,11 @@ Todas as alterações relevantes deste projeto são documentadas neste arquivo.
   registros incluídos no relatório;
 - pytest configurado como executor oficial da suíte e da integração contínua;
 - testes de falha da API, país vazio, deduplicação, atualização idempotente e
-  filtros globais do dashboard.
+  filtros globais do dashboard;
+- consulta limitada, conexão única por país e caches com tamanho controlado;
+- agregação server-side de mapas volumosos preservando as contagens;
+- credenciais de leitura e escrita separadas e papel PostgreSQL de menor privilégio;
+- sanitização de senhas em erros e logs e validação adicional de entradas.
 
 ## [1.0.0] - 2026-07-16
 

@@ -274,6 +274,16 @@ class TestConsultasPostgreSQL(unittest.TestCase):
         self.assertEqual(resultado, [{"gbif_key": 10}])
         self.assertEqual(cursor.executados[0][1], ("%alpha%", 5))
 
+        with self.assertRaisesRegex(ValueError, "entre 1 e 1000"):
+            executar_consulta(cursor, "ranking", "biodiversity", limite=1001)
+        with self.assertRaisesRegex(ValueError, "máximo 200"):
+            executar_consulta(
+                cursor,
+                "especie",
+                "biodiversity",
+                termo="a" * 201,
+            )
+
 
 @unittest.skipUnless(
     os.getenv("TEST_DATABASE_URL"),

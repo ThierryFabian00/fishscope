@@ -7,10 +7,12 @@ from src.config import (
     ESPECIE_PADRAO,
     GRUPO_TAXONOMICO,
     LIMITE_CONSULTA_PADRAO,
+    LIMITE_REGISTROS_DASHBOARD,
     PAIS_PADRAO,
     PAISES,
     TAMANHO_PAGINA_PADRAO,
     ConfiguracaoAplicacao,
+    limite_registros_dashboard,
 )
 from src.database import ConfiguracaoBanco, validar_schema
 from src.extract import criar_parser
@@ -72,6 +74,14 @@ class TestConfiguracaoAplicacao(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "inteiro"):
                 ConfiguracaoAplicacao.do_ambiente(ENV_INEXISTENTE)
 
+    def test_configura_limite_do_dashboard(self):
+        with patch.dict(
+            os.environ, {"LIMITE_REGISTROS_DASHBOARD": "25000"}, clear=True
+        ):
+            self.assertEqual(limite_registros_dashboard(), 25_000)
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(limite_registros_dashboard(), LIMITE_REGISTROS_DASHBOARD)
+
     def test_aceita_nome_antigo_do_limite(self):
         with patch.dict(os.environ, {"LIMITE_PADRAO": "450"}, clear=True):
             configuracao = ConfiguracaoAplicacao.do_ambiente(ENV_INEXISTENTE)
@@ -83,12 +93,16 @@ class TestConfiguracaoBanco(unittest.TestCase):
     def test_carrega_url_e_valida_schema(self):
         ambiente = {
             "DATABASE_URL": "postgresql://localhost/teste",
+            "DATABASE_WRITE_URL": "postgresql://localhost/teste_escrita",
             "DB_SCHEMA": "biodiversity_v2",
         }
         with patch.dict(os.environ, ambiente, clear=True):
             configuracao = ConfiguracaoBanco.do_ambiente(ENV_INEXISTENTE)
 
         self.assertEqual(configuracao.exigir_url(), ambiente["DATABASE_URL"])
+        self.assertEqual(
+            configuracao.exigir_url_escrita(), ambiente["DATABASE_WRITE_URL"]
+        )
         self.assertEqual(configuracao.schema, "biodiversity_v2")
 
     def test_exige_url(self):
@@ -97,6 +111,19 @@ class TestConfiguracaoBanco(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "DATABASE_URL"):
             configuracao.exigir_url()
+        with self.assertRaisesRegex(ValueError, "DATABASE_WRITE_URL"):
+            configuracao.exigir_url_escrita()
+
+    def test_script_cria_usuario_de_dashboard_somente_leitura(self):
+        script = (
+            Path(__file__).resolve().parent.parent / "sql" / "create_dashboard_role.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("NOSUPERUSER NOCREATEDB NOCREATEROLE", script)
+        self.assertIn("GRANT SELECT ON ALL TABLES", script)
+        self.assertIn("REVOKE CREATE ON SCHEMA public", script)
+        for permissao in ("GRANT INSERT", "GRANT UPDATE", "GRANT DELETE"):
+            self.assertNotIn(permissao, script)
 
     def test_rejeita_schema_inseguro(self):
         with self.assertRaises(ValueError):

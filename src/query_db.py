@@ -6,8 +6,9 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-from src.config import ARQUIVO_ENV
+from src.config import ARQUIVO_ENV, LIMITE_RESULTADOS_SQL
 from src.database import ConfiguracaoBanco, validar_schema
+from src.security import mensagem_erro_segura
 
 CONSULTAS = ("resumo", "ranking", "anos", "meses", "origens", "especie")
 
@@ -67,8 +68,8 @@ def executar_consulta(
     limite: int = 20,
     termo: str | None = None,
 ) -> list[dict[str, Any]]:
-    if limite <= 0:
-        raise ValueError("O limite deve ser positivo.")
+    if not 1 <= limite <= LIMITE_RESULTADOS_SQL:
+        raise ValueError(f"O limite deve estar entre 1 e {LIMITE_RESULTADOS_SQL}.")
     consultas = criar_consultas(schema)
     if consulta not in consultas:
         raise ValueError(f"Consulta desconhecida: {consulta}")
@@ -78,7 +79,10 @@ def executar_consulta(
     elif consulta == "especie":
         if not termo or not termo.strip():
             raise ValueError("Informe --termo para consultar uma especie.")
-        parametros = (f"%{termo.strip()}%", limite)
+        termo = termo.strip()
+        if len(termo) > 200:
+            raise ValueError("O termo de busca deve ter no máximo 200 caracteres.")
+        parametros = (f"%{termo}%", limite)
     cursor.execute(consultas[consulta], parametros)
     return list(cursor.fetchall())
 
@@ -118,7 +122,8 @@ def main() -> None:
                     argumentos.termo,
                 )
     except (psycopg.Error, ValueError) as erro:
-        raise SystemExit(f"Falha na consulta PostgreSQL: {erro}") from erro
+        mensagem = mensagem_erro_segura(erro, "Erro de conexão ou consulta.")
+        raise SystemExit(f"Falha na consulta PostgreSQL: {mensagem}") from erro
     print(json.dumps(resultado, ensure_ascii=False, indent=2, default=str))
 
 

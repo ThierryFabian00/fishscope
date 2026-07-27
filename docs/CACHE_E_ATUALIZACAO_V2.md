@@ -44,8 +44,9 @@ interface mostra o avanço da coleta, normaliza os registros, atualiza o
 PostgreSQL e invalida o cache de leitura do Streamlit. Se a atualização falhar,
 o erro é exibido sem remover os dados anteriormente armazenados.
 
-A atualização exige `DATABASE_URL`, pois o fluxo só considera a operação
-concluída depois que os dados são persistidos. Sem conexão configurada, os CSVs
+A atualização exige `DATABASE_WRITE_URL`, pois o fluxo só considera a operação
+concluída depois que os dados são persistidos. A consulta comum usa
+`DATABASE_URL` com um papel somente leitura. Sem conexão configurada, os CSVs
 continuam disponíveis apenas como fallback de leitura.
 
 ## Verificação

@@ -97,16 +97,30 @@ A tabela permite buscar por espécie, localidade ou unidade administrativa e exp
 
 ## Fonte de dados
 
-A aplicação procura `DATABASE_URL` e `DB_SCHEMA` no ambiente ou no arquivo `.env`. Se o PostgreSQL falhar, tenta carregar:
+A aplicação procura `DATABASE_URL` e `DB_SCHEMA` no ambiente ou no arquivo
+`.env`. A URL deve pertencer a um usuário somente leitura. Atualizações manuais
+exigem a credencial separada `DATABASE_WRITE_URL`. Se o PostgreSQL falhar, tenta carregar:
 
 - `data/processed/ocorrencias_peixes_bacia_parana.csv`;
 - `data/processed/especies_bacia_parana.csv`.
 
 A interface informa qual fonte está ativa e nunca exibe a URL de conexão.
 
+## Desempenho e segurança
+
+A carga por país usa uma conexão, cache de cinco minutos e teto configurável de
+50.000 registros. Acima de 5.000 pontos, o mapa envia células agregadas ao
+navegador e informa a otimização. Mensagens de erro mascaram credenciais antes
+de chegar à interface ou ao log. Consulte
+[Desempenho e segurança](DESEMPENHO_SEGURANCA_V2.md).
+
 ## Publicação
 
-Em uma hospedagem Streamlit, configure `DATABASE_URL` e `DB_SCHEMA` como secrets ou variáveis de ambiente. O banco precisa aceitar conexões da hospedagem. Os CSVs processados não são versionados e, portanto, não devem ser considerados fonte de produção sem uma etapa explícita de publicação dos dados.
+Em uma hospedagem Streamlit, configure `DATABASE_URL` e `DB_SCHEMA` como secrets
+ou variáveis de ambiente. Só configure `DATABASE_WRITE_URL` quando a instância
+publicada realmente precisar atualizar o GBIF. O banco precisa aceitar conexões
+da hospedagem. Os CSVs processados não são versionados e, portanto, não devem ser
+considerados fonte de produção sem uma etapa explícita de publicação dos dados.
 
 ## Validação
 

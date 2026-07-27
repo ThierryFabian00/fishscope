@@ -20,6 +20,7 @@ def validar_schema(schema: str) -> str:
 class ConfiguracaoBanco:
     database_url: str | None
     schema: str
+    database_write_url: str | None = None
 
     @classmethod
     def do_ambiente(
@@ -31,6 +32,7 @@ class ConfiguracaoBanco:
         return cls(
             database_url=os.getenv("DATABASE_URL"),
             schema=validar_schema(schema or os.getenv("DB_SCHEMA", SCHEMA_PADRAO)),
+            database_write_url=os.getenv("DATABASE_WRITE_URL"),
         )
 
     def exigir_url(self) -> str:
@@ -39,3 +41,11 @@ class ConfiguracaoBanco:
                 "DATABASE_URL nao definida. Crie .env a partir de .env.example."
             )
         return self.database_url
+
+    def exigir_url_escrita(self) -> str:
+        if not self.database_write_url:
+            raise ValueError(
+                "DATABASE_WRITE_URL não definida. A atualização exige uma "
+                "credencial PostgreSQL de escrita separada."
+            )
+        return self.database_write_url

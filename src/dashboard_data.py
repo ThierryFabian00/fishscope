@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from math import sqrt
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -7,7 +8,12 @@ import psycopg
 from psycopg.rows import dict_row
 
 from src.analysis import ESTADOS_ESPERADOS, normalizar_estado
-from src.config import PAIS_PADRAO
+from src.config import (
+    LIMITE_BUSCA_GBIF,
+    LIMITE_PONTOS_MAPA,
+    PAIS_PADRAO,
+    limite_registros_dashboard,
+)
 from src.database import validar_schema
 from src.services.country_service import normalizar_codigo_pais, obter_pais
 from src.transform_fish import (
@@ -40,6 +46,8 @@ class ResultadoFonte:
     pais_codigo: str = PAIS_PADRAO
     pais_nome: str = "Brasil"
     resumo_importacao: ResumoImportacao | None = None
+    total_disponivel: int | None = None
+    limitado: bool = False
 
 
 @dataclass(frozen=True)
@@ -104,21 +112,44 @@ def consulta_dashboard(schema: str) -> str:
             o.locality,
             o.basis_of_record,
             o.taxonomic_issues,
-            o.occurrence_issues
+            o.occurrence_issues,
+            COUNT(*) OVER() AS total_disponivel
         FROM {schema}.occurrences o
         JOIN {schema}.taxa t ON t.taxon_key = o.taxon_key
         WHERE o.country_code = %s
         ORDER BY o.gbif_key
+        LIMIT %s
     """
 
 
 def carregar_postgresql(
-    database_url: str, schema: str, codigo_pais: str
+    database_url: str,
+    schema: str,
+    codigo_pais: str,
+    limite: int | None = None,
 ) -> pd.DataFrame:
+    if limite is None:
+        limite = limite_registros_dashboard()
+    if not 1 <= limite <= LIMITE_BUSCA_GBIF:
+        raise ValueError(
+            f"O limite do dashboard deve estar entre 1 e {LIMITE_BUSCA_GBIF}."
+        )
     with psycopg.connect(database_url, row_factory=dict_row) as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(consulta_dashboard(schema), (codigo_pais,))
-            return pd.DataFrame(cursor.fetchall(), columns=COLUNAS_DASHBOARD)
+        return _carregar_postgresql_conexao(conexao, schema, codigo_pais, limite)
+
+
+def _carregar_postgresql_conexao(
+    conexao: Any, schema: str, codigo_pais: str, limite: int
+) -> pd.DataFrame:
+    with conexao.cursor() as cursor:
+        cursor.execute(consulta_dashboard(schema), (codigo_pais, limite))
+        linhas = cursor.fetchall()
+    total_disponivel = int(linhas[0]["total_disponivel"]) if linhas else 0
+    dados = pd.DataFrame(linhas)
+    dados = dados.drop(columns="total_disponivel", errors="ignore")
+    dados = dados.reindex(columns=COLUNAS_DASHBOARD)
+    dados.attrs["total_disponivel"] = total_disponivel
+    return dados
 
 
 def carregar_resumo_importacao(
@@ -126,20 +157,27 @@ def carregar_resumo_importacao(
 ) -> ResumoImportacao | None:
     schema = validar_schema(schema)
     with psycopg.connect(database_url, row_factory=dict_row) as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT records_received, records_saved, records_rejected,
-                       records_rejected_taxonomy, quality_stats_complete,
-                       finished_at
-                FROM {schema}.data_imports
-                WHERE country_code = %s AND status = 'COMPLETED'
-                ORDER BY finished_at DESC NULLS LAST, id DESC
-                LIMIT 1
-                """,
-                (codigo_pais,),
-            )
-            linha = cursor.fetchone()
+        return _carregar_resumo_importacao_conexao(conexao, schema, codigo_pais)
+
+
+def _carregar_resumo_importacao_conexao(
+    conexao: Any, schema: str, codigo_pais: str
+) -> ResumoImportacao | None:
+    schema = validar_schema(schema)
+    with conexao.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT records_received, records_saved, records_rejected,
+                   records_rejected_taxonomy, quality_stats_complete,
+                   finished_at
+            FROM {schema}.data_imports
+            WHERE country_code = %s AND status = 'COMPLETED'
+            ORDER BY finished_at DESC NULLS LAST, id DESC
+            LIMIT 1
+            """,
+            (codigo_pais,),
+        )
+        linha = cursor.fetchone()
     if not linha or not linha["quality_stats_complete"]:
         return None
     return ResumoImportacao(
@@ -149,6 +187,24 @@ def carregar_resumo_importacao(
         sem_nivel_especie=int(linha["records_rejected_taxonomy"]),
         atualizado_em=linha["finished_at"],
     )
+
+
+def carregar_postgresql_com_resumo(
+    database_url: str,
+    schema: str,
+    codigo_pais: str,
+    limite: int | None = None,
+) -> tuple[pd.DataFrame, ResumoImportacao | None]:
+    if limite is None:
+        limite = limite_registros_dashboard()
+    if not 1 <= limite <= LIMITE_BUSCA_GBIF:
+        raise ValueError(
+            f"O limite do dashboard deve estar entre 1 e {LIMITE_BUSCA_GBIF}."
+        )
+    with psycopg.connect(database_url, row_factory=dict_row) as conexao:
+        dados = _carregar_postgresql_conexao(conexao, schema, codigo_pais, limite)
+        resumo = _carregar_resumo_importacao_conexao(conexao, schema, codigo_pais)
+    return dados, resumo
 
 
 def carregar_csv(
@@ -315,15 +371,18 @@ def carregar_dados_dashboard(
     )
     aviso_fonte = None
     resumo_importacao = None
+    total_disponivel = None
     if arquivos_do_pais_disponiveis and not database_url:
         dados = carregar_csv(caminho_ocorrencias, caminho_especies)
         fonte = "CSV"
     elif database_url:
         try:
-            dados = carregar_postgresql(database_url, schema, pais.codigo_iso)
-            resumo_importacao = carregar_resumo_importacao(
-                database_url, schema, pais.codigo_iso
+            dados, resumo_importacao = carregar_postgresql_com_resumo(
+                database_url,
+                schema,
+                pais.codigo_iso,
             )
+            total_disponivel = int(dados.attrs.get("total_disponivel", len(dados)))
             fonte = "PostgreSQL"
         except psycopg.Error:
             aviso_fonte = "PostgreSQL indisponivel; exibindo os CSVs processados."
@@ -351,7 +410,16 @@ def carregar_dados_dashboard(
     )
     dados = normalizar_dados(dados, codigo_pais_fonte)
     dados = dados.loc[dados["country_code"].eq(pais.codigo_iso)].copy()
+    if total_disponivel is None:
+        total_disponivel = len(dados)
+        dados = dados.head(limite_registros_dashboard()).copy()
+    limitado = total_disponivel > len(dados)
     avisos = [aviso_fonte] if aviso_fonte else []
+    if limitado:
+        avisos.append(
+            f"Consulta limitada a {len(dados):,} de {total_disponivel:,} registros; "
+            "use filtros ou uma consulta analítica para conjuntos maiores."
+        )
     if pais.codigo_iso != PAIS_PADRAO and dados.empty:
         avisos.append(
             f"Ainda não há dados importados para {pais.nome} ({pais.codigo_iso})."
@@ -363,6 +431,8 @@ def carregar_dados_dashboard(
         pais.codigo_iso,
         pais.nome,
         resumo_importacao,
+        total_disponivel,
+        limitado,
     )
 
 
@@ -384,12 +454,84 @@ def filtrar_ocorrencias(
         mascara &= dados["origin_status"].isin(origens)
     if intervalo_anos:
         inicio, fim = intervalo_anos
+        if inicio > fim:
+            raise ValueError("O início do período não pode ser posterior ao fim.")
+        if inicio < 1600 or fim > 2200:
+            raise ValueError("O período deve estar entre 1600 e 2200.")
         mascara &= dados["event_year"].between(inicio, fim, inclusive="both")
     if tipos:
         mascara &= dados["basis_of_record"].isin(tipos)
     if estados:
         mascara &= dados["state_normalized"].isin(estados)
     return dados.loc[mascara].copy()
+
+
+def preparar_pontos_mapa(
+    dados: pd.DataFrame, limite: int = LIMITE_PONTOS_MAPA
+) -> tuple[pd.DataFrame, bool]:
+    """Limita o volume enviado ao navegador por agregação em grade regular."""
+    if limite <= 0:
+        raise ValueError("O limite de pontos do mapa deve ser positivo.")
+    pontos = dados.dropna(subset=["decimal_latitude", "decimal_longitude"]).copy()
+    pontos = pontos.loc[
+        pontos["decimal_latitude"].between(-90, 90)
+        & pontos["decimal_longitude"].between(-180, 180)
+    ]
+    if len(pontos) <= limite:
+        pontos["map_occurrence_count"] = 1
+        pontos["map_species_count"] = 1
+        return pontos, False
+
+    lado = max(1, int(sqrt(limite)))
+
+    def indice_grade(valores: pd.Series) -> pd.Series:
+        minimo = float(valores.min())
+        amplitude = float(valores.max() - minimo)
+        if amplitude == 0:
+            return pd.Series(0, index=valores.index, dtype="int64")
+        normalizados = ((valores - minimo) / amplitude).clip(0, 1)
+        return (normalizados * (lado - 1)).astype("int64")
+
+    pontos["_map_lat_cell"] = indice_grade(pontos["decimal_latitude"])
+    pontos["_map_lon_cell"] = indice_grade(pontos["decimal_longitude"])
+    agregacoes: dict[str, Any] = {
+        "decimal_latitude": "mean",
+        "decimal_longitude": "mean",
+        "gbif_id": "first",
+    }
+    for coluna in (
+        "species_key",
+        "canonical_name",
+        "origin_status",
+        "state_normalized",
+        "event_year",
+        "basis_of_record",
+    ):
+        if coluna in pontos:
+            agregacoes[coluna] = "first"
+    if "species_key" in pontos:
+        agregacoes["map_species_count"] = ("species_key", "nunique")
+    agrupados = pontos.groupby(
+        ["_map_lat_cell", "_map_lon_cell"], as_index=False, observed=True
+    ).agg(
+        **{
+            coluna: (coluna, operacao) if isinstance(operacao, str) else operacao
+            for coluna, operacao in agregacoes.items()
+        }
+    )
+    contagens = (
+        pontos.groupby(
+            ["_map_lat_cell", "_map_lon_cell"], as_index=False, observed=True
+        )
+        .size()
+        .rename(columns={"size": "map_occurrence_count"})
+    )
+    agrupados = agrupados.merge(
+        contagens, on=["_map_lat_cell", "_map_lon_cell"], how="left"
+    )
+    if "map_species_count" not in agrupados:
+        agrupados["map_species_count"] = 0
+    return agrupados.drop(columns=["_map_lat_cell", "_map_lon_cell"]), True
 
 
 def calcular_indicadores(dados: pd.DataFrame) -> dict[str, Any]:
