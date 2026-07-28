@@ -95,7 +95,9 @@ def criar_metadados(
     try:
         fonte_publica = caminho_entrada.resolve().relative_to(PASTA_PROJETO).as_posix()
     except ValueError:
-        fonte_publica = caminho_entrada.name
+        # Path follows the host OS syntax. Normalize separators first so metadata
+        # created on Linux also strips directories from a Windows-style path.
+        fonte_publica = Path(str(caminho_entrada).replace("\\", "/")).name
     datasets = (
         amostra.groupby(
             ["datasetKey", "datasetName", "institutionCode", "licenseName"],
