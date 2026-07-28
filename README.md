@@ -2,6 +2,8 @@
 
 ![CI](https://github.com/ThierryFabian00/biodiversidade-peixes/actions/workflows/ci.yml/badge.svg)
 
+[Abrir o dashboard público](https://biodiversidade-peixes-parana.streamlit.app/)
+
 Pipeline reproducivel para coletar, padronizar, validar, analisar e visualizar
 ocorrencias de peixes na Bacia Hidrografica do Parana. O projeto combina dados
 do GBIF, limites geograficos oficiais e uma referencia de especies introduzidas,

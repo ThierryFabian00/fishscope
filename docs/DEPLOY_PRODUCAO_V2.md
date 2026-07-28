@@ -1,5 +1,12 @@
 # Publicação da versão 2
 
+Dashboard público: <https://biodiversidade-peixes-parana.streamlit.app/>
+
+A publicação inicial usa a amostra redistribuível incluída no repositório e não
+depende de um serviço PostgreSQL pago. Quando uma instância remota for
+provisionada, basta configurar a credencial de leitura conforme as instruções
+abaixo; o endereço público permanece o mesmo.
+
 ## Arquitetura de produção
 
 O dashboard é publicado no Streamlit Community Cloud a partir de `main`, com
@@ -63,12 +70,13 @@ ambiente. Nunca envie `.env` ou `secrets.toml` ao GitHub.
 Depois do deploy:
 
 1. abra a URL em uma janela anônima;
-2. confirme que a fonte ativa é PostgreSQL;
+2. confirme que a fonte ativa é a amostra pública ou o PostgreSQL configurado;
 3. alterne entre Brasil e Suíça;
 4. teste mapa, série temporal, comparação, relatório e CSV;
 5. confirme que a atualização GBIF está desabilitada;
 6. repita em viewport de computador e celular;
-7. confira `https://<app>.streamlit.app/_stcore/health`;
+7. confira
+   `https://biodiversidade-peixes-parana.streamlit.app/~/+/_stcore/health`;
 8. verifique os logs sem expor URLs de conexão.
 
 ## Recuperação
