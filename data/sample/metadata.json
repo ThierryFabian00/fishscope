@@ -1,6 +1,6 @@
 {
   "createdAt": "2026-07-16T19:08:24.565401+00:00",
-  "sourceFile": "C:\\Users\\thier\\OneDrive\\Documentos\\Projetos\\biodiversidade_peixes_parana\\data\\processed\\ocorrencias_peixes_bacia_parana.csv",
+  "sourceFile": "data/processed/ocorrencias_peixes_bacia_parana.csv",
   "recordCount": 64,
   "selection": "Deterministic sample with one occurrence per species, up to ten records per dataset, restricted to CC0 1.0 and CC BY 4.0.",
   "citationWarning": "This sample does not replace a citable GBIF Occurrence Download with DOI. Retain dataset, institution, license and GBIF IDs.",

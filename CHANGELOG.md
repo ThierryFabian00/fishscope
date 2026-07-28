@@ -4,6 +4,8 @@ Todas as alterações relevantes deste projeto são documentadas neste arquivo.
 
 ## [Não publicado]
 
+## [2.0.0] - 2026-07-28
+
 ### Adicionado
 
 - dashboard global por país com fonte e última atualização;
@@ -24,6 +26,9 @@ Todas as alterações relevantes deste projeto são documentadas neste arquivo.
 - agregação server-side de mapas volumosos preservando as contagens;
 - credenciais de leitura e escrita separadas e papel PostgreSQL de menor privilégio;
 - sanitização de senhas em erros e logs e validação adicional de entradas.
+- configuração documentada para PostgreSQL remoto e Streamlit Community Cloud;
+- fallback público somente leitura para indisponibilidade do banco de produção;
+- capturas responsivas e vídeo demonstrativo da plataforma.
 
 ## [1.0.0] - 2026-07-16
 

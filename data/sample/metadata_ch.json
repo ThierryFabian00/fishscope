@@ -1,0 +1,37 @@
+{
+  "createdAt": "2026-07-28T14:04:28.644124+00:00",
+  "sourceFile": "data/processed/ocorrencias_peixes_ch.csv",
+  "recordCount": 17,
+  "selection": "Deterministic sample with one occurrence per species, up to ten records per dataset, restricted to CC0 1.0 and CC BY 4.0.",
+  "citationWarning": "This sample does not replace a citable GBIF Occurrence Download with DOI. Retain dataset, institution, license and GBIF IDs.",
+  "datasets": [
+    {
+      "datasetKey": "0a0b594e-0c5e-4766-a5d7-66043160de5f",
+      "datasetName": "https://doi.org/10.15468/kataf2",
+      "institutionCode": "",
+      "licenseName": "CC BY 4.0",
+      "recordCount": 10
+    },
+    {
+      "datasetKey": "272faa11-1c7b-4955-8172-7f1e74f6b939",
+      "datasetName": "",
+      "institutionCode": "NMBE",
+      "licenseName": "CC0 1.0",
+      "recordCount": 1
+    },
+    {
+      "datasetKey": "50c9509d-22c7-4a22-a47d-8c48425ef4a7",
+      "datasetName": "iNaturalist research-grade observations",
+      "institutionCode": "iNaturalist",
+      "licenseName": "CC BY 4.0",
+      "recordCount": 5
+    },
+    {
+      "datasetKey": "50c9509d-22c7-4a22-a47d-8c48425ef4a7",
+      "datasetName": "iNaturalist research-grade observations",
+      "institutionCode": "iNaturalist",
+      "licenseName": "CC0 1.0",
+      "recordCount": 1
+    }
+  ]
+}

@@ -22,6 +22,22 @@ from src.transform_fish import (
     caminhos_processados_pais,
 )
 
+ARQUIVO_AMOSTRA_PUBLICA = (
+    Path(__file__).resolve().parent.parent
+    / "data"
+    / "sample"
+    / "occurrences_sample.csv"
+)
+
+
+def caminho_amostra_publica(codigo_pais: str) -> Path:
+    codigo = normalizar_codigo_pais(codigo_pais)
+    if codigo == PAIS_PADRAO:
+        return ARQUIVO_AMOSTRA_PUBLICA
+    return ARQUIVO_AMOSTRA_PUBLICA.with_name(
+        f"occurrences_{codigo.casefold()}_sample.csv"
+    )
+
 
 @dataclass(frozen=True)
 class ResumoImportacao:
@@ -269,6 +285,55 @@ def carregar_csv(
     )[COLUNAS_DASHBOARD]
 
 
+def carregar_amostra_publica(
+    caminho: Path | None = None,
+    codigo_pais: str = PAIS_PADRAO,
+) -> pd.DataFrame:
+    """Adapta a amostra redistribuível ao contrato do dashboard."""
+    caminho = caminho or caminho_amostra_publica(codigo_pais)
+    if not caminho.exists():
+        raise FileNotFoundError("A amostra pública do dashboard não foi encontrada.")
+    amostra = pd.read_csv(caminho)
+    obrigatorias = {
+        "gbifID",
+        "canonicalName",
+        "eventDate",
+        "stateProvince",
+        "basisOfRecord",
+        "decimalLatitude",
+        "decimalLongitude",
+    }
+    ausentes = obrigatorias.difference(amostra.columns)
+    if ausentes:
+        raise ValueError(
+            "Colunas ausentes na amostra pública: " + ", ".join(sorted(ausentes))
+        )
+    datas = pd.to_datetime(amostra["eventDate"], errors="coerce", utc=True)
+    resultado = pd.DataFrame(
+        {
+            "gbif_id": amostra["gbifID"],
+            "species_key": "sample:" + amostra["canonicalName"].astype("string"),
+            "canonical_name": amostra["canonicalName"],
+            "family": pd.NA,
+            "order_name": pd.NA,
+            "origin_status": "UNKNOWN",
+            "iucn_category": pd.NA,
+            "event_date": datas,
+            "date_precision": "DAY",
+            "event_year": datas.dt.year,
+            "event_month": datas.dt.month,
+            "decimal_latitude": amostra["decimalLatitude"],
+            "decimal_longitude": amostra["decimalLongitude"],
+            "state_province": amostra["stateProvince"],
+            "locality": pd.NA,
+            "basis_of_record": amostra["basisOfRecord"],
+            "taxonomic_issues": "",
+            "occurrence_issues": "",
+        }
+    )
+    return resultado[COLUNAS_DASHBOARD]
+
+
 def normalizar_dados(
     dados: pd.DataFrame, codigo_pais_fonte: str = PAIS_PADRAO
 ) -> pd.DataFrame:
@@ -372,6 +437,7 @@ def carregar_dados_dashboard(
     aviso_fonte = None
     resumo_importacao = None
     total_disponivel = None
+    usou_amostra_publica = False
     if arquivos_do_pais_disponiveis and not database_url:
         dados = carregar_csv(caminho_ocorrencias, caminho_especies)
         fonte = "CSV"
@@ -389,23 +455,41 @@ def carregar_dados_dashboard(
             if caminhos_automaticos and not (
                 caminho_ocorrencias.exists() and caminho_especies.exists()
             ):
-                caminho_ocorrencias = ARQUIVO_OCORRENCIAS
-                caminho_especies = ARQUIVO_ESPECIES
-            dados = carregar_csv(caminho_ocorrencias, caminho_especies)
-            fonte = "CSV"
+                if ARQUIVO_OCORRENCIAS.exists() and ARQUIVO_ESPECIES.exists():
+                    caminho_ocorrencias = ARQUIVO_OCORRENCIAS
+                    caminho_especies = ARQUIVO_ESPECIES
+                else:
+                    dados = carregar_amostra_publica(codigo_pais=pais.codigo_iso)
+                    fonte = "Amostra pública"
+                    usou_amostra_publica = True
+            if not usou_amostra_publica:
+                dados = carregar_csv(caminho_ocorrencias, caminho_especies)
+                fonte = "CSV"
     else:
         aviso_fonte = "DATABASE_URL ausente; exibindo os CSVs processados."
         if caminhos_automaticos and not (
             caminho_ocorrencias.exists() and caminho_especies.exists()
         ):
-            caminho_ocorrencias = ARQUIVO_OCORRENCIAS
-            caminho_especies = ARQUIVO_ESPECIES
-        dados = carregar_csv(caminho_ocorrencias, caminho_especies)
-        fonte = "CSV"
+            if ARQUIVO_OCORRENCIAS.exists() and ARQUIVO_ESPECIES.exists():
+                caminho_ocorrencias = ARQUIVO_OCORRENCIAS
+                caminho_especies = ARQUIVO_ESPECIES
+            else:
+                dados = carregar_amostra_publica(codigo_pais=pais.codigo_iso)
+                fonte = "Amostra pública"
+                usou_amostra_publica = True
+        if not usou_amostra_publica:
+            dados = carregar_csv(caminho_ocorrencias, caminho_especies)
+            fonte = "CSV"
+
+    if usou_amostra_publica:
+        aviso_fonte = (
+            "PostgreSQL de produção indisponível; exibindo a amostra pública "
+            "redistribuível em modo somente leitura."
+        )
 
     codigo_pais_fonte = (
         pais.codigo_iso
-        if arquivos_do_pais_disponiveis or fonte == "PostgreSQL"
+        if arquivos_do_pais_disponiveis or fonte == "PostgreSQL" or usou_amostra_publica
         else PAIS_PADRAO
     )
     dados = normalizar_dados(dados, codigo_pais_fonte)

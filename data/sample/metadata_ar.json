@@ -1,0 +1,44 @@
+{
+  "createdAt": "2026-07-28T14:04:33.764523+00:00",
+  "sourceFile": "data/processed/ocorrencias_peixes_ar.csv",
+  "recordCount": 24,
+  "selection": "Deterministic sample with one occurrence per species, up to ten records per dataset, restricted to CC0 1.0 and CC BY 4.0.",
+  "citationWarning": "This sample does not replace a citable GBIF Occurrence Download with DOI. Retain dataset, institution, license and GBIF IDs.",
+  "datasets": [
+    {
+      "datasetKey": "040c5662-da76-4782-a48e-cdea1892d14c",
+      "datasetName": "",
+      "institutionCode": "Mined from GenBank, NCBI",
+      "licenseName": "CC BY 4.0",
+      "recordCount": 3
+    },
+    {
+      "datasetKey": "50c9509d-22c7-4a22-a47d-8c48425ef4a7",
+      "datasetName": "iNaturalist research-grade observations",
+      "institutionCode": "iNaturalist",
+      "licenseName": "CC BY 4.0",
+      "recordCount": 3
+    },
+    {
+      "datasetKey": "50c9509d-22c7-4a22-a47d-8c48425ef4a7",
+      "datasetName": "iNaturalist research-grade observations",
+      "institutionCode": "iNaturalist",
+      "licenseName": "CC0 1.0",
+      "recordCount": 7
+    },
+    {
+      "datasetKey": "8b289003-92f9-43e0-9bd0-175a5e010bb6",
+      "datasetName": "",
+      "institutionCode": "",
+      "licenseName": "CC0 1.0",
+      "recordCount": 10
+    },
+    {
+      "datasetKey": "d8cd16ba-bb74-4420-821e-083f2bac17c2",
+      "datasetName": "",
+      "institutionCode": "",
+      "licenseName": "CC BY 4.0",
+      "recordCount": 1
+    }
+  ]
+}
