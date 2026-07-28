@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import pandas as pd
@@ -92,12 +92,16 @@ def criar_metadados(
     amostra: pd.DataFrame,
     caminho_entrada: Path,
 ) -> dict[str, Any]:
-    try:
-        fonte_publica = caminho_entrada.resolve().relative_to(PASTA_PROJETO).as_posix()
-    except ValueError:
-        # Path follows the host OS syntax. Normalize separators first so metadata
-        # created on Linux also strips directories from a Windows-style path.
-        fonte_publica = Path(str(caminho_entrada).replace("\\", "/")).name
+    caminho_windows = PureWindowsPath(caminho_entrada)
+    if not caminho_entrada.is_absolute() and caminho_windows.is_absolute():
+        fonte_publica = caminho_windows.name
+    else:
+        try:
+            fonte_publica = (
+                caminho_entrada.resolve().relative_to(PASTA_PROJETO).as_posix()
+            )
+        except ValueError:
+            fonte_publica = Path(str(caminho_entrada).replace("\\", "/")).name
     datasets = (
         amostra.groupby(
             ["datasetKey", "datasetName", "institutionCode", "licenseName"],
