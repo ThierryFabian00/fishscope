@@ -8,6 +8,7 @@ import pandas as pd
 from src.dashboard_data import (
     ResumoImportacao,
     calcular_indicadores,
+    carregar_amostra_publica,
     carregar_csv,
     carregar_dados_dashboard,
     carregar_postgresql_com_resumo,
@@ -341,6 +342,50 @@ class TestDadosDashboard(unittest.TestCase):
         self.assertEqual(resultado.loc[0, "family"], "Alphaidae")
         self.assertEqual(resultado.loc[0, "order_name"], "Alphaformes")
         self.assertEqual(resultado.loc[0, "iucn_category"], "LC")
+
+    def test_carrega_amostra_publica_quando_banco_e_processados_estao_ausentes(self):
+        amostra = pd.DataFrame(
+            [
+                {
+                    "gbifID": 42,
+                    "canonicalName": "Species publica",
+                    "eventDate": "2024-06-15T00:00:00Z",
+                    "stateProvince": "Parana",
+                    "basisOfRecord": "HUMAN_OBSERVATION",
+                    "decimalLatitude": -23.5,
+                    "decimalLongitude": -51.5,
+                }
+            ]
+        )
+        with tempfile.TemporaryDirectory() as pasta:
+            raiz = Path(pasta)
+            caminho_amostra = raiz / "sample.csv"
+            caminho_amostra_ch = raiz / "occurrences_ch_sample.csv"
+            inexistente = raiz / "inexistente.csv"
+            amostra.to_csv(caminho_amostra, index=False)
+            amostra.to_csv(caminho_amostra_ch, index=False)
+
+            adaptada = carregar_amostra_publica(caminho_amostra)
+            with (
+                patch(
+                    "src.dashboard_data.caminhos_processados_pais",
+                    return_value=(inexistente, inexistente, inexistente),
+                ),
+                patch("src.dashboard_data.ARQUIVO_OCORRENCIAS", inexistente),
+                patch("src.dashboard_data.ARQUIVO_ESPECIES", inexistente),
+                patch("src.dashboard_data.ARQUIVO_AMOSTRA_PUBLICA", caminho_amostra),
+            ):
+                resultado = carregar_dados_dashboard(
+                    None, "biodiversity", codigo_pais="BR"
+                )
+                suica = carregar_dados_dashboard(None, "biodiversity", codigo_pais="CH")
+
+        self.assertEqual(adaptada.loc[0, "event_year"], 2024)
+        self.assertEqual(adaptada.loc[0, "species_key"], "sample:Species publica")
+        self.assertEqual(resultado.fonte, "Amostra pública")
+        self.assertEqual(resultado.dados["gbif_id"].tolist(), [42])
+        self.assertIn("amostra pública", resultado.aviso)
+        self.assertEqual(suica.dados["country_code"].tolist(), ["CH"])
 
     def test_seleciona_brasil_e_nao_mistura_base_legada_com_suica(self):
         ocorrencias = pd.DataFrame(

@@ -7,7 +7,18 @@ ocorrencias de peixes na Bacia Hidrografica do Parana. O projeto combina dados
 do GBIF, limites geograficos oficiais e uma referencia de especies introduzidas,
 com persistencia em PostgreSQL e um dashboard Streamlit.
 
-![Dashboard interativo](docs/assets/dashboard.png)
+![Dashboard v2 em computador](docs/assets/dashboard-v2-desktop.png)
+
+O dashboard reúne filtros globais, mapas interativos, séries temporais,
+comparação entre países, qualidade dos dados e relatórios PDF reproduzíveis.
+
+![Mapa de ocorrências da versão 2](docs/assets/dashboard-v2-mapa.png)
+
+<p align="center">
+  <img src="docs/assets/dashboard-v2-mobile.png" width="320" alt="Dashboard v2 em celular">
+</p>
+
+[Assistir ao vídeo demonstrativo](docs/assets/demonstracao-v2.mp4)
 
 ## Resultados atuais
 
@@ -131,7 +142,8 @@ fonte e ausencia eventual de metadados de publicacao na resposta da API.
 - [Relatório automático em PDF](docs/RELATORIO_AUTOMATICO_V2.md)
 - [Testes e matriz de cobertura](docs/TESTES_V2.md)
 - [Desempenho e segurança](docs/DESEMPENHO_SEGURANCA_V2.md)
+- [Publicação da versão 2](docs/DEPLOY_PRODUCAO_V2.md)
 - [Citacao e licencas](docs/CITACAO_E_LICENCAS.md)
 
-Versao atual: **1.0.0**. Consulte o [historico de mudancas](CHANGELOG.md) e o
+Versao atual: **2.0.0**. Consulte o [historico de mudancas](CHANGELOG.md) e o
 arquivo [CITATION.cff](CITATION.cff) para citar o software.

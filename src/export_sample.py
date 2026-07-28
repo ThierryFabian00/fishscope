@@ -92,6 +92,10 @@ def criar_metadados(
     amostra: pd.DataFrame,
     caminho_entrada: Path,
 ) -> dict[str, Any]:
+    try:
+        fonte_publica = caminho_entrada.resolve().relative_to(PASTA_PROJETO).as_posix()
+    except ValueError:
+        fonte_publica = caminho_entrada.name
     datasets = (
         amostra.groupby(
             ["datasetKey", "datasetName", "institutionCode", "licenseName"],
@@ -104,7 +108,7 @@ def criar_metadados(
     )
     return {
         "createdAt": datetime.now(timezone.utc).isoformat(),
-        "sourceFile": str(caminho_entrada),
+        "sourceFile": fonte_publica,
         "recordCount": len(amostra),
         "selection": (
             "Deterministic sample with one occurrence per species, up to ten "

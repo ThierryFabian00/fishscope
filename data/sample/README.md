@@ -1,6 +1,11 @@
 # Amostra de demonstração
 
-`occurrences_sample.csv` é uma amostra determinística para inspeção da estrutura do projeto. Ela contém no máximo um registro por espécie e dez registros por dataset, limitada a ocorrências com licença CC0 1.0 ou CC BY 4.0.
+`occurrences_sample.csv` é a amostra brasileira. Os arquivos com sufixos `ch`,
+`ar` e `py` representam, respectivamente, Suíça, Argentina e Paraguai. São
+amostras determinísticas para inspeção da estrutura e para o fallback público
+do dashboard quando o PostgreSQL estiver indisponível. Cada arquivo contém no
+máximo um registro por espécie e dez registros por dataset, limitado a
+ocorrências com licença CC0 1.0 ou CC BY 4.0.
 
 Cada linha mantém GBIF ID, dataset, organização publicadora, instituição, licença e links de referência. Para CC BY, a atribuição ao publicador original continua obrigatória.
 

@@ -1,8 +1,9 @@
 import unittest
+from pathlib import Path
 
 import pandas as pd
 
-from src.export_sample import selecionar_amostra
+from src.export_sample import criar_metadados, selecionar_amostra
 
 
 def criar_registro(chave, especie, dataset, licenca):
@@ -72,6 +73,24 @@ class TestExportarAmostra(unittest.TestCase):
 
         self.assertEqual(amostra["canonicalName"].nunique(), len(amostra))
         self.assertLessEqual(amostra["datasetKey"].value_counts().max(), 2)
+
+    def test_metadados_nao_expoem_caminho_local_externo(self):
+        amostra = selecionar_amostra(
+            pd.DataFrame(
+                [
+                    criar_registro(
+                        1,
+                        "Species alpha",
+                        "A",
+                        "http://creativecommons.org/licenses/by/4.0/legalcode",
+                    )
+                ]
+            )
+        )
+
+        metadados = criar_metadados(amostra, Path("C:/privado/entrada.csv"))
+
+        self.assertEqual(metadados["sourceFile"], "entrada.csv")
 
 
 if __name__ == "__main__":

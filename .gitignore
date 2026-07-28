@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .env
+.streamlit/secrets.toml
 data/raw/*.csv
 data/raw/*.jsonl
 data/raw/*_metadata.json
@@ -12,3 +13,4 @@ data/processed/*.png
 data/processed/*_metadata.json
 data/analysis/
 data/geographic/
+docs/assets/video-frames/
