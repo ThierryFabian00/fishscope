@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/ThierryFabian00/fishscope/actions/workflows/ci.yml/badge.svg)
 
-[Abrir o FishScope](https://biodiversidade-peixes-parana.streamlit.app/)
+[Abrir o FishScope](https://fishscope.streamlit.app/)
 
 Plataforma para coleta, processamento, análise e visualização de ocorrências de
 peixes a partir de dados do GBIF.
