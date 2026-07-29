@@ -12,6 +12,25 @@ TEM_DADOS_SUICA = (
 ).exists() and (PROJECT_ROOT / "data" / "processed" / "especies_peixes_ch.csv").exists()
 
 
+class TestPaginaInicial(unittest.TestCase):
+    def test_renderiza_inicio_sem_carregar_dashboard(self):
+        app = AppTest.from_file(
+            str(PROJECT_ROOT / "app" / "app.py"), default_timeout=30
+        )
+
+        app.run()
+
+        self.assertFalse(app.exception)
+        self.assertTrue(any(item.label == "Começar a explorar" for item in app.button))
+        self.assertEqual(
+            [item.value for item in app.subheader],
+            ["Mapa de ocorrências", "Análise temporal", "Qualidade dos dados"],
+        )
+        self.assertFalse(app.tabs)
+        self.assertFalse(app.metric)
+        self.assertFalse(app.selectbox)
+
+
 @unittest.skipUnless(
     TEM_FONTE_LOCAL,
     "Dashboard exige PostgreSQL configurado ou CSVs processados.",
@@ -19,7 +38,8 @@ TEM_DADOS_SUICA = (
 class TestStreamlitApp(unittest.TestCase):
     def test_renderiza_dashboard_sem_excecoes(self):
         app = AppTest.from_file(
-            str(PROJECT_ROOT / "app" / "app.py"), default_timeout=90
+            str(PROJECT_ROOT / "app" / "pages" / "1_Explorar.py"),
+            default_timeout=90,
         )
 
         app.run()
