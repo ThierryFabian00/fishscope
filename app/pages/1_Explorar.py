@@ -55,13 +55,6 @@ from src.sync_data import (  # noqa: E402
 CONFIGURACAO_BANCO = ConfiguracaoBanco.do_ambiente()
 LOGGER = logging.getLogger(__name__)
 
-st.set_page_config(
-    page_title=APP_NAME,
-    page_icon="🐟",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
 CORES_ORIGEM = {
     "NATIVE": [15, 118, 110, 190],
     "INTRODUCED": [194, 65, 59, 200],
