@@ -42,8 +42,7 @@ class TestPaginaInicial(unittest.TestCase):
         self.assertEqual(comparar.title[0].value, "Comparar")
         self.assertTrue(
             any(
-                item.label == "Abrir comparação em Explorar"
-                for item in comparar.button
+                item.label == "Abrir comparação em Explorar" for item in comparar.button
             )
         )
         self.assertFalse(sobre.exception)
