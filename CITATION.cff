@@ -1,14 +1,15 @@
 cff-version: 1.2.0
 message: "Se você usar este software, cite-o usando estes metadados."
-title: "Biodiversidade de peixes na Bacia do Paraná"
+title: "FishScope"
+abstract: "Plataforma para exploração e análise de ocorrências de peixes a partir de dados do GBIF."
 type: software
 version: 2.0.0
 date-released: 2026-07-28
 authors:
   - family-names: "Fabian"
     given-names: "Thierry"
-repository-code: "https://github.com/ThierryFabian00/biodiversidade-peixes"
-url: "https://github.com/ThierryFabian00/biodiversidade-peixes"
+repository-code: "https://github.com/ThierryFabian00/fishscope"
+url: "https://github.com/ThierryFabian00/fishscope"
 keywords:
   - biodiversity
   - fish

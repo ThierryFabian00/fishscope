@@ -4,12 +4,17 @@ from pathlib import Path
 from unittest.mock import patch
 
 from src.config import (
+    APP_CAPTION,
+    APP_NAME,
     ESPECIE_PADRAO,
     GRUPO_TAXONOMICO,
     LIMITE_CONSULTA_PADRAO,
     LIMITE_REGISTROS_DASHBOARD,
     PAIS_PADRAO,
     PAISES,
+    PROJECT_DESCRIPTION,
+    PROJECT_NAME,
+    PROJECT_SLUG,
     TAMANHO_PAGINA_PADRAO,
     ConfiguracaoAplicacao,
     limite_registros_dashboard,
@@ -27,6 +32,20 @@ ENV_INEXISTENTE = Path("arquivo-inexistente.env")
 
 
 class TestConfiguracaoAplicacao(unittest.TestCase):
+    def test_identidade_publica_e_tecnica_do_projeto(self):
+        self.assertEqual(PROJECT_NAME, "FishScope")
+        self.assertEqual(APP_NAME, "FishScope")
+        self.assertEqual(PROJECT_SLUG, "fishscope")
+        self.assertEqual(
+            PROJECT_DESCRIPTION,
+            "Plataforma para exploração e análise de ocorrências de peixes a "
+            "partir de dados do GBIF.",
+        )
+        self.assertEqual(
+            APP_CAPTION,
+            "Plataforma para exploração e análise de ocorrências de peixes.",
+        )
+
     def test_mantem_valores_padrao_sem_ambiente(self):
         with patch.dict(os.environ, {}, clear=True):
             configuracao = ConfiguracaoAplicacao.do_ambiente(ENV_INEXISTENTE)

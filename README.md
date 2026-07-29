@@ -1,23 +1,31 @@
-# Biodiversidade de peixes na Bacia do Parana
+# FishScope
 
-![CI](https://github.com/ThierryFabian00/biodiversidade-peixes/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/ThierryFabian00/fishscope/actions/workflows/ci.yml/badge.svg)
 
-[Abrir o dashboard público](https://biodiversidade-peixes-parana.streamlit.app/)
+[Abrir o FishScope](https://biodiversidade-peixes-parana.streamlit.app/)
 
-Pipeline reproducivel para coletar, padronizar, validar, analisar e visualizar
-ocorrencias de peixes na Bacia Hidrografica do Parana. O projeto combina dados
-do GBIF, limites geograficos oficiais e uma referencia de especies introduzidas,
-com persistencia em PostgreSQL e um dashboard Streamlit.
+Plataforma para coleta, processamento, análise e visualização de ocorrências de
+peixes a partir de dados do GBIF.
 
-![Dashboard v2 em computador](docs/assets/dashboard-v2-desktop.png)
+## Sobre o projeto
+
+O FishScope permite explorar ocorrências de peixes em diferentes países e
+períodos utilizando dados disponibilizados pelo GBIF.
+
+A plataforma oferece mapas interativos, análises temporais, comparação entre
+regiões e indicadores de qualidade dos dados. O recorte principal combina a
+Bacia Hidrográfica do Paraná, limites geográficos oficiais e uma referência de
+espécies introduzidas, com persistência opcional em PostgreSQL.
+
+![FishScope em computador](docs/assets/dashboard-v2-desktop.png)
 
 O dashboard reúne filtros globais, mapas interativos, séries temporais,
 comparação entre países, qualidade dos dados e relatórios PDF reproduzíveis.
 
-![Mapa de ocorrências da versão 2](docs/assets/dashboard-v2-mapa.png)
+![Mapa de ocorrências no FishScope](docs/assets/dashboard-v2-mapa.png)
 
 <p align="center">
-  <img src="docs/assets/dashboard-v2-mobile.png" width="320" alt="Dashboard v2 em celular">
+  <img src="docs/assets/dashboard-v2-mobile.png" width="320" alt="FishScope em celular">
 </p>
 
 [Assistir ao vídeo demonstrativo](docs/assets/demonstracao-v2.mp4)

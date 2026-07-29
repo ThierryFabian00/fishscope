@@ -11,6 +11,7 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
 
+from src.config import APP_NAME
 from src.dashboard_data import (
     calcular_indicadores,
     distribuicao_origem,
@@ -74,7 +75,7 @@ def _configurar_pagina(
         0.07,
         0.025,
         (
-            f"Gerado em {contexto.gerado_em:%d/%m/%Y %H:%M} · "
+            f"{APP_NAME} · Gerado em {contexto.gerado_em:%d/%m/%Y %H:%M} · "
             f"Fonte: {contexto.fonte} · {contexto.pais_nome} ({contexto.pais_codigo})"
         ),
         color=COR_SECUNDARIA,
@@ -85,7 +86,7 @@ def _configurar_pagina(
 def _pagina_resumo(dados: pd.DataFrame, contexto: ContextoRelatorio) -> Figure:
     figura = Figure(figsize=(8.27, 11.69))
     _configurar_pagina(
-        figura, "Relatório automático de ocorrências de peixes", contexto
+        figura, f"{APP_NAME} — Relatório automático de ocorrências de peixes", contexto
     )
     indicadores = calcular_indicadores(dados)
     qualidade = indicadores_qualidade(dados)
@@ -312,8 +313,8 @@ def gerar_relatorio_pdf(
     with PdfPages(
         saida,
         metadata={
-            "Title": f"Relatório de ocorrências de peixes — {pais_nome}",
-            "Author": "Biodiversidade de Peixes",
+            "Title": f"{APP_NAME} — Relatório de ocorrências de peixes — {pais_nome}",
+            "Author": APP_NAME,
             "Subject": f"Consulta {assinatura_registros(dados)}",
             "CreationDate": contexto.gerado_em,
         },

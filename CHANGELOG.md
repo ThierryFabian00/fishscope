@@ -4,6 +4,12 @@ Todas as alterações relevantes deste projeto são documentadas neste arquivo.
 
 ## [Não publicado]
 
+### Alterado
+
+- nome público e técnico do projeto padronizados como FishScope e `fishscope`;
+- interface, relatórios, exportações, documentação e metadados atualizados para
+  a nova marca, preservando os identificadores do banco existente.
+
 ## [2.0.0] - 2026-07-28
 
 ### Adicionado
