@@ -1,4 +1,4 @@
-# Arquitetura
+# FishScope — Arquitetura
 
 ## Fluxo principal
 

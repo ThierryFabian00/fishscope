@@ -1,6 +1,9 @@
-# Publicação da versão 2
+# FishScope — Publicação da versão 2
 
 Dashboard público: <https://biodiversidade-peixes-parana.streamlit.app/>
+
+O subdomínio anterior é mantido temporariamente para preservar a publicação
+existente. Ele pode ser renomeado no Streamlit após a alteração do repositório.
 
 A publicação inicial usa a amostra redistribuível incluída no repositório e não
 depende de um serviço PostgreSQL pago. Quando uma instância remota for
@@ -55,7 +58,7 @@ python -m src.query_db resumo
 
 No Streamlit Community Cloud, crie o aplicativo a partir de:
 
-- repositório: `ThierryFabian00/biodiversidade-peixes`;
+- repositório: `ThierryFabian00/fishscope`;
 - branch: `main`;
 - arquivo principal: `app/app.py`;
 - Python: `3.12`.

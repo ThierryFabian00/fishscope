@@ -17,9 +17,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import (  # noqa: E402
+    APP_CAPTION,
+    APP_NAME,
     LIMITE_PONTOS_MAPA,
     LIMITE_RESULTADOS_SQL,
     PAIS_PADRAO,
+    PROJECT_SLUG,
 )
 from src.dashboard_data import (  # noqa: E402
     ResultadoFonte,
@@ -53,7 +56,8 @@ CONFIGURACAO_BANCO = ConfiguracaoBanco.do_ambiente()
 LOGGER = logging.getLogger(__name__)
 
 st.set_page_config(
-    page_title="Peixes da Bacia do Paraná",
+    page_title=APP_NAME,
+    page_icon="🐟",
     layout="wide",
     initial_sidebar_state="auto",
 )
@@ -326,6 +330,7 @@ paises_disponiveis = listar_paises()
 nomes_por_codigo = {pais.codigo_iso: pais.nome for pais in paises_disponiveis}
 codigos_paises = [pais.codigo_iso for pais in paises_disponiveis]
 with st.sidebar:
+    st.markdown(f"### {APP_NAME}")
     st.header("Filtros")
     codigo_pais = st.selectbox(
         "País",
@@ -465,17 +470,13 @@ filtrados = filtrar_ocorrencias(
     estados=estados,
 )
 
-titulo = (
-    "Peixes da Bacia do Paraná"
-    if pais.codigo_iso == PAIS_PADRAO
-    else f"Ocorrências de peixes — {pais.nome}"
-)
 descricao_pais = (
     "Ocorrências publicadas na porção brasileira da Região Hidrográfica do Paraná"
     if pais.codigo_iso == PAIS_PADRAO
     else f"País selecionado: {pais.nome} ({pais.codigo_iso})"
 )
-st.title(titulo)
+st.title(APP_NAME)
+st.caption(APP_CAPTION)
 st.html(
     f"""
     <div class="source-row">
@@ -1075,7 +1076,9 @@ with aba_relatorio:
     st.download_button(
         "Baixar relatório PDF",
         data=relatorio_pdf,
-        file_name=f"relatorio_peixes_{pais.codigo_iso.lower()}_{sufixo_periodo}.pdf",
+        file_name=(
+            f"{PROJECT_SLUG}_relatorio_{pais.codigo_iso.lower()}_{sufixo_periodo}.pdf"
+        ),
         mime="application/pdf",
         icon=":material/picture_as_pdf:",
         type="primary",
@@ -1298,7 +1301,7 @@ with aba_dados:
     st.download_button(
         "Baixar CSV",
         data=tabela_exibicao.to_csv(index=False).encode("utf-8-sig"),
-        file_name="ocorrencias_filtradas.csv",
+        file_name=f"{PROJECT_SLUG}_ocorrencias_filtradas.csv",
         mime="text/csv",
         icon=":material/download:",
     )
@@ -1309,3 +1312,5 @@ with st.expander("Metodologia e limitações"):
         Os pontos representam ocorrências publicadas no GBIF e filtradas pelo limite oficial da porção brasileira da Região Hidrográfica do Paraná. As contagens refletem coleta e publicação, não abundância biológica. A fonte atual é uma amostra de 5.000 registros do pré-filtro; comparações ecológicas exigem a base integral e controle do esforço amostral.
         """
     )
+
+st.caption(f"{APP_NAME} · Dados de ocorrências fornecidos pelo GBIF.")

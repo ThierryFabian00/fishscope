@@ -11,6 +11,15 @@ from dotenv import load_dotenv
 PASTA_PROJETO = Path(__file__).resolve().parent.parent
 ARQUIVO_ENV = PASTA_PROJETO / ".env"
 
+PROJECT_NAME = "FishScope"
+APP_NAME = PROJECT_NAME
+PROJECT_SLUG = "fishscope"
+PROJECT_DESCRIPTION = (
+    "Plataforma para exploração e análise de ocorrências de peixes a partir de "
+    "dados do GBIF."
+)
+APP_CAPTION = "Plataforma para exploração e análise de ocorrências de peixes."
+
 GBIF_API = "https://api.gbif.org/v1"
 TAMANHO_MAXIMO_PAGINA = 300
 TIMEOUT_GBIF_SEGUNDOS = 60

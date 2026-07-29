@@ -25,7 +25,14 @@ class TestStreamlitApp(unittest.TestCase):
         app.run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(app.title[0].value, "Peixes da Bacia do Paraná")
+        self.assertEqual(app.title[0].value, "FishScope")
+        self.assertTrue(
+            any(
+                item.value
+                == "Plataforma para exploração e análise de ocorrências de peixes."
+                for item in app.caption
+            )
+        )
         self.assertEqual(
             [aba.label for aba in app.tabs],
             [
@@ -108,7 +115,7 @@ class TestStreamlitApp(unittest.TestCase):
         seletor_pais.set_value("CH").run()
 
         self.assertFalse(app.exception)
-        self.assertEqual(app.title[0].value, "Ocorrências de peixes — Suíça")
+        self.assertEqual(app.title[0].value, "FishScope")
         if TEM_DADOS_SUICA:
             metricas_suica = {metrica.label: metrica.value for metrica in app.metric}
             self.assertEqual(metricas_suica["Ocorrências"], "4.802")

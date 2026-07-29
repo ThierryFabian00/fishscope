@@ -1,8 +1,8 @@
-# Dashboard Streamlit
+# FishScope — Dashboard Streamlit
 
 ## Visão geral
 
-A Etapa 8 disponibiliza uma interface global para explorar ocorrências de peixes
+O FishScope disponibiliza uma interface global para explorar ocorrências de peixes
 por país. O dashboard consulta o schema PostgreSQL `biodiversity` e usa os CSVs
 processados como fallback quando a conexão não está disponível.
 

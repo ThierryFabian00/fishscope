@@ -83,6 +83,7 @@ class TestRelatorioPDF(unittest.TestCase):
         )
 
         self.assertTrue(pdf.startswith(b"%PDF-"))
+        self.assertIn(b"FishScope", pdf)
         self.assertGreater(len(pdf), 20_000)
         self.assertGreaterEqual(len(re.findall(rb"/Type /Page\b", pdf)), 3)
 
