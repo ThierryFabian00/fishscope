@@ -30,6 +30,25 @@ class TestPaginaInicial(unittest.TestCase):
         self.assertFalse(app.metric)
         self.assertFalse(app.selectbox)
 
+    def test_renderiza_paginas_auxiliares(self):
+        comparar = AppTest.from_file(
+            str(PROJECT_ROOT / "app" / "pages" / "compare.py")
+        ).run()
+        sobre = AppTest.from_file(
+            str(PROJECT_ROOT / "app" / "pages" / "about.py")
+        ).run()
+
+        self.assertFalse(comparar.exception)
+        self.assertEqual(comparar.title[0].value, "Comparar")
+        self.assertTrue(
+            any(
+                item.label == "Abrir comparação em Explorar" for item in comparar.button
+            )
+        )
+        self.assertFalse(sobre.exception)
+        self.assertEqual(sobre.title[0].value, "Sobre")
+        self.assertEqual(sobre.subheader[0].value, "FishScope")
+
 
 @unittest.skipUnless(
     TEM_FONTE_LOCAL,
