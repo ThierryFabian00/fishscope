@@ -1,9 +1,6 @@
 # FishScope — Publicação da versão 2
 
-Dashboard público: <https://biodiversidade-peixes-parana.streamlit.app/>
-
-O subdomínio anterior é mantido temporariamente para preservar a publicação
-existente. Ele pode ser renomeado no Streamlit após a alteração do repositório.
+Dashboard público: <https://fishscope.streamlit.app/>
 
 A publicação inicial usa a amostra redistribuível incluída no repositório e não
 depende de um serviço PostgreSQL pago. Quando uma instância remota for
@@ -79,7 +76,7 @@ Depois do deploy:
 5. confirme que a atualização GBIF está desabilitada;
 6. repita em viewport de computador e celular;
 7. confira
-   `https://biodiversidade-peixes-parana.streamlit.app/~/+/_stcore/health`;
+   `https://fishscope.streamlit.app/~/+/_stcore/health`;
 8. verifique os logs sem expor URLs de conexão.
 
 ## Recuperação
