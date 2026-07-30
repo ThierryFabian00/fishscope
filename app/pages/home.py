@@ -1,6 +1,10 @@
 """Página inicial pública do FishScope."""
 
+from html import escape
+
 import streamlit as st
+
+from src.i18n import t
 
 
 def aplicar_estilo() -> None:
@@ -45,42 +49,39 @@ def aplicar_estilo() -> None:
 aplicar_estilo()
 
 st.html(
-    """
+    f"""
     <section class="home-intro">
-      <h1>FishScope</h1>
-      <h2>Explore registros de ocorrência de peixes ao redor do mundo.</h2>
-      <p>
-        Visualize espécies, distribuições geográficas e registros ao longo do
-        tempo utilizando dados públicos do GBIF.
-      </p>
+      <h1>{escape(t("app_name"))}</h1>
+      <h2>{escape(t("hero_title"))}</h2>
+      <p>{escape(t("hero_description"))}</p>
     </section>
     """
 )
 
 if st.button(
-    "Começar a explorar",
+    t("start_exploring"),
     type="primary",
     icon=":material/arrow_forward:",
 ):
     st.switch_page("pages/1_Explorar.py")
 
-st.markdown("## Principais recursos")
+st.markdown(f"## {t('main_features')}")
 
 coluna_mapa, coluna_tempo, coluna_qualidade = st.columns(3)
 with coluna_mapa:
     with st.container(border=True):
-        st.subheader("Mapa de ocorrências")
-        st.write("Visualize a distribuição geográfica dos registros.")
+        st.subheader(t("occurrence_map"))
+        st.write(t("occurrence_map_description"))
 
 with coluna_tempo:
     with st.container(border=True):
-        st.subheader("Análise temporal")
-        st.write("Explore como os registros se distribuem ao longo dos anos.")
+        st.subheader(t("temporal_analysis"))
+        st.write(t("temporal_analysis_description"))
 
 with coluna_qualidade:
     with st.container(border=True):
-        st.subheader("Qualidade dos dados")
-        st.write("Entenda a cobertura e as limitações das informações analisadas.")
+        st.subheader(t("data_quality"))
+        st.write(t("data_quality_description"))
 
 st.divider()
-st.caption("Dados fornecidos pelo [GBIF](https://www.gbif.org/).")
+st.caption(t("data_source"))

@@ -28,7 +28,45 @@ class TestPaginaInicial(unittest.TestCase):
         )
         self.assertFalse(app.tabs)
         self.assertFalse(app.metric)
-        self.assertFalse(app.selectbox)
+        self.assertEqual(len(app.selectbox), 1)
+        self.assertEqual(app.selectbox[0].label, "Idioma / Language")
+        self.assertEqual(app.selectbox[0].value, "pt")
+
+    def test_alterna_para_ingles_e_preserva_idioma_ao_explorar(self):
+        app = AppTest.from_file(
+            str(PROJECT_ROOT / "app" / "app.py"), default_timeout=90
+        ).run()
+
+        app.selectbox[0].set_value("en").run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(app.session_state["language"], "en")
+        self.assertTrue(any(item.label == "Start exploring" for item in app.button))
+        self.assertEqual(
+            [item.value for item in app.subheader],
+            ["Occurrence map", "Temporal analysis", "Data quality"],
+        )
+
+        next(
+            item for item in app.button if item.label == "Start exploring"
+        ).click().run()
+
+        self.assertFalse(app.exception)
+        self.assertEqual(app.session_state["language"], "en")
+        self.assertEqual(
+            [tab.label for tab in app.tabs],
+            [
+                "Overview",
+                "Map",
+                "Temporal",
+                "Species",
+                "Comparison",
+                "Report",
+                "Quality",
+                "Data",
+            ],
+        )
+        self.assertTrue(any(item.label == "Country" for item in app.selectbox))
 
     def test_renderiza_paginas_auxiliares(self):
         comparar = AppTest.from_file(
@@ -48,6 +86,24 @@ class TestPaginaInicial(unittest.TestCase):
         self.assertFalse(sobre.exception)
         self.assertEqual(sobre.title[0].value, "Sobre")
         self.assertEqual(sobre.subheader[0].value, "FishScope")
+
+        comparar_en = AppTest.from_file(
+            str(PROJECT_ROOT / "app" / "pages" / "compare.py")
+        )
+        comparar_en.session_state["language"] = "en"
+        comparar_en.run()
+        sobre_en = AppTest.from_file(str(PROJECT_ROOT / "app" / "pages" / "about.py"))
+        sobre_en.session_state["language"] = "en"
+        sobre_en.run()
+
+        self.assertEqual(comparar_en.title[0].value, "Compare")
+        self.assertTrue(
+            any(
+                item.label == "Open comparison in Explore"
+                for item in comparar_en.button
+            )
+        )
+        self.assertEqual(sobre_en.title[0].value, "About")
 
 
 @unittest.skipUnless(
