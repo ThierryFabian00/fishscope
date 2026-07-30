@@ -17,7 +17,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import (  # noqa: E402
-    APP_CAPTION,
     APP_NAME,
     LIMITE_PONTOS_MAPA,
     LIMITE_RESULTADOS_SQL,
@@ -44,6 +43,14 @@ from src.dashboard_data import (  # noqa: E402
 from src.database import ConfiguracaoBanco  # noqa: E402
 from src.filter_basin import ARQUIVO_LIMITE  # noqa: E402
 from src.gbif_client import ErroGBIF  # noqa: E402
+from src.i18n import (  # noqa: E402
+    format_integer,
+    t,
+    translate_error,
+    translate_notice,
+    translate_progress,
+    translate_source,
+)
 from src.report import gerar_relatorio_pdf  # noqa: E402
 from src.security import mensagem_erro_segura  # noqa: E402
 from src.services.country_service import listar_paises, obter_pais  # noqa: E402
@@ -68,16 +75,16 @@ CORES_PLOTLY = {
     "UNKNOWN": "#64748b",
 }
 ROTULOS_ORIGEM = {
-    "NATIVE": "Nativa",
-    "INTRODUCED": "Introduzida",
-    "CONFLICTING": "Conflitante",
-    "UNKNOWN": "Desconhecida",
+    "NATIVE": t("native"),
+    "INTRODUCED": t("introduced"),
+    "CONFLICTING": t("conflicting"),
+    "UNKNOWN": t("unknown"),
 }
 ROTULOS_ESTADO = {
     "Parana": "Paraná",
     "Sao Paulo": "São Paulo",
     "Goias": "Goiás",
-    "Nao informado": "Não informado",
+    "Nao informado": t("not_informed"),
 }
 
 
@@ -165,7 +172,7 @@ def obter_relatorio_pdf(
 
 
 def formatar_numero(valor: int) -> str:
-    return f"{valor:,}".replace(",", ".")
+    return format_integer(valor)
 
 
 def rotulo_estado(valor: str) -> str:
@@ -302,15 +309,12 @@ def criar_mapa(
             }
             if modo == "Pontos por espécie" and not agregado
             else {
-                "html": (
-                    "<b>{map_occurrence_count} ocorrências agregadas</b><br/>"
-                    "{map_species_count} espécies"
-                ),
+                "html": (t("map_aggregated")),
                 "style": {"backgroundColor": "#17211d", "color": "white"},
             }
             if agregado
             else {
-                "html": "<b>{elevationValue} ocorrências próximas</b>",
+                "html": t("map_nearby"),
                 "style": {"backgroundColor": "#17211d", "color": "white"},
             }
         ),
@@ -324,26 +328,24 @@ nomes_por_codigo = {pais.codigo_iso: pais.nome for pais in paises_disponiveis}
 codigos_paises = [pais.codigo_iso for pais in paises_disponiveis]
 with st.sidebar:
     st.markdown(f"### {APP_NAME}")
-    st.header("Filtros")
+    st.header(t("filters"))
     codigo_pais = st.selectbox(
-        "País",
+        t("country"),
         codigos_paises,
         index=codigos_paises.index(PAIS_PADRAO),
         format_func=lambda codigo: f"{nomes_por_codigo[codigo]} ({codigo})",
     )
     forcar_atualizacao = st.button(
-        "Atualizar dados do GBIF",
+        t("update_gbif"),
         icon=":material/refresh:",
         width="stretch",
         disabled=CONFIGURACAO_BANCO.database_write_url is None,
         help=(
-            "Defina DATABASE_WRITE_URL para habilitar atualizações."
-            if CONFIGURACAO_BANCO.database_write_url is None
-            else None
+            t("update_help") if CONFIGURACAO_BANCO.database_write_url is None else None
         ),
     )
     if CONFIGURACAO_BANCO.database_write_url is None:
-        st.caption("Atualização desativada: credencial de escrita não configurada.")
+        st.caption(t("update_disabled"))
 
 pais = obter_pais(codigo_pais)
 schema = CONFIGURACAO_BANCO.schema
@@ -358,9 +360,13 @@ def atualizar_progresso(evento: ProgressoSincronizacao) -> None:
         else (1.0 if evento.etapa == "concluido" else 0.0)
     )
     if widget_progresso["valor"] is None:
-        widget_progresso["valor"] = st.sidebar.progress(valor, text=evento.mensagem)
+        widget_progresso["valor"] = st.sidebar.progress(
+            valor, text=translate_progress(evento.mensagem)
+        )
     else:
-        widget_progresso["valor"].progress(valor, text=evento.mensagem)
+        widget_progresso["valor"].progress(
+            valor, text=translate_progress(evento.mensagem)
+        )
 
 
 database_write_url = CONFIGURACAO_BANCO.database_write_url
@@ -376,27 +382,37 @@ if forcar_atualizacao and database_write_url:
         if sincronizacao.fonte == "GBIF":
             obter_dados.clear()
             st.sidebar.success(
-                f"Atualização concluída: {sincronizacao.registros_salvos:,} registros."
+                t(
+                    "update_complete",
+                    count=formatar_numero(sincronizacao.registros_salvos),
+                )
             )
     except (ErroGBIF, psycopg.Error, ValueError) as erro:
-        mensagem = mensagem_erro_segura(erro, "Falha inesperada na atualização.")
+        mensagem = mensagem_erro_segura(erro, t("unexpected_update_error"))
         LOGGER.error("Falha controlada na atualização: %s", mensagem)
-        st.sidebar.error(f"Não foi possível atualizar os dados: {mensagem}")
+        st.sidebar.error(
+            t(
+                "update_failed",
+                message=translate_error(mensagem, "unexpected_update_error"),
+            )
+        )
     finally:
         if widget_progresso["valor"] is not None:
             widget_progresso["valor"].empty()
 elif forcar_atualizacao:
-    st.sidebar.warning(
-        "Atualização indisponível: defina DATABASE_WRITE_URL com uma credencial "
-        "PostgreSQL de escrita. A consulta normal usa apenas DATABASE_URL."
-    )
+    st.sidebar.warning(t("update_unavailable"))
 
 try:
     resultado = obter_dados(schema, pais.codigo_iso)
 except (FileNotFoundError, ValueError) as erro:
-    mensagem = mensagem_erro_segura(erro, "A fonte de dados não está disponível.")
+    mensagem = mensagem_erro_segura(erro, t("source_unavailable_error"))
     LOGGER.error("Falha controlada ao carregar dados: %s", mensagem)
-    st.error(f"Dados indisponíveis: {mensagem}")
+    st.error(
+        t(
+            "data_unavailable",
+            message=translate_error(mensagem, "source_unavailable_error"),
+        )
+    )
     st.stop()
 
 dados = resultado.dados
@@ -416,16 +432,16 @@ with st.sidebar:
         )
     )
     especies = st.multiselect(
-        "Espécies",
+        t("species"),
         catalogo_especies["species_key"].tolist(),
-        placeholder="Todas as espécies",
+        placeholder=t("all_species"),
         format_func=lambda chave: nomes_especies.get(chave, chave),
     )
     origens_disponiveis = sorted(dados["origin_status"].dropna().unique())
     origens = st.multiselect(
-        "Origem",
+        t("origin"),
         origens_disponiveis,
-        placeholder="Todas as classificações",
+        placeholder=t("all_classifications"),
         format_func=lambda valor: ROTULOS_ORIGEM.get(valor, valor),
     )
     anos = dados["event_year"].dropna().astype(int)
@@ -433,22 +449,22 @@ with st.sidebar:
     if not anos.empty:
         limites_anos = (int(anos.min()), int(anos.max()))
         intervalo_anos = st.slider(
-            "Período",
+            t("period"),
             min_value=limites_anos[0],
             max_value=limites_anos[1],
             value=limites_anos,
         )
     tipos_disponiveis = sorted(dados["basis_of_record"].dropna().unique())
     tipos = st.multiselect(
-        "Tipo de registro",
+        t("record_type"),
         tipos_disponiveis,
-        placeholder="Todos os tipos",
+        placeholder=t("all_record_types"),
     )
     estados_disponiveis = sorted(dados["state_normalized"].dropna().unique())
     estados = st.multiselect(
-        "Unidade administrativa",
+        t("administrative_unit"),
         estados_disponiveis,
-        placeholder="Todas as unidades",
+        placeholder=t("all_units"),
         format_func=rotulo_estado,
     )
     st.divider()
@@ -464,47 +480,45 @@ filtrados = filtrar_ocorrencias(
 )
 
 descricao_pais = (
-    "Ocorrências publicadas na porção brasileira da Região Hidrográfica do Paraná"
+    t("parana_region_description")
     if pais.codigo_iso == PAIS_PADRAO
-    else f"País selecionado: {pais.nome} ({pais.codigo_iso})"
+    else t("selected_country", name=pais.nome, code=pais.codigo_iso)
 )
 st.title(APP_NAME)
-st.caption(APP_CAPTION)
+st.caption(t("app_caption"))
+fonte_traduzida = translate_source(resultado.fonte)
 st.html(
     f"""
     <div class="source-row">
       <span>{descricao_pais}</span>
-      <span class="source-badge">Fonte ativa: {resultado.fonte}</span>
+      <span class="source-badge">{t("active_source", source=fonte_traduzida)}</span>
     </div>
     """
 )
-st.caption(f"País selecionado: {pais.nome} ({pais.codigo_iso})")
+st.caption(t("selected_country", name=pais.nome, code=pais.codigo_iso))
 if resultado.aviso:
-    st.warning(resultado.aviso)
+    st.warning(translate_notice(resultado.aviso))
 
 indicadores = calcular_indicadores(filtrados)
 ultima_atualizacao = (
     pd.Timestamp(resultado.resumo_importacao.atualizado_em).strftime("%d/%m/%Y")
     if resultado.resumo_importacao
     and resultado.resumo_importacao.atualizado_em is not None
-    else "Não disponível"
+    else t("not_available")
 )
 colunas_metricas = st.columns(5)
 metricas = [
-    ("Ocorrências", formatar_numero(indicadores["occurrences"])),
-    ("Espécies", formatar_numero(indicadores["species"])),
-    ("Período", indicadores["period"]),
-    ("Última atualização", ultima_atualizacao),
-    ("Fonte", resultado.fonte),
+    (t("occurrences"), formatar_numero(indicadores["occurrences"])),
+    (t("species"), formatar_numero(indicadores["species"])),
+    (t("covered_period"), indicadores["period"]),
+    (t("last_update"), ultima_atualizacao),
+    (t("source"), fonte_traduzida),
 ]
 for coluna, (rotulo, valor) in zip(colunas_metricas, metricas, strict=True):
     coluna.metric(rotulo, valor)
 
 if filtrados.empty:
-    st.info(
-        f"Nenhuma ocorrência disponível para {pais.nome} ({pais.codigo_iso}) "
-        "com os filtros selecionados."
-    )
+    st.info(t("empty_filters", name=pais.nome, code=pais.codigo_iso))
     st.stop()
 
 (
@@ -518,14 +532,14 @@ if filtrados.empty:
     aba_dados,
 ) = st.tabs(
     [
-        "Visão geral",
-        "Mapa",
-        "Temporal",
-        "Espécies",
-        "Comparação",
-        "Relatório",
-        "Qualidade",
-        "Dados",
+        t("overview"),
+        t("map"),
+        t("temporal"),
+        t("species"),
+        t("comparison"),
+        t("report"),
+        t("quality"),
+        t("data"),
     ]
 )
 
@@ -547,13 +561,13 @@ with aba_visao:
                 ROTULOS_ORIGEM[chave]: cor for chave, cor in CORES_PLOTLY.items()
             },
             labels={
-                "occurrence_count": "Ocorrências",
+                "occurrence_count": t("occurrences"),
                 "canonical_name": "",
-                "origin_label": "Origem",
+                "origin_label": t("origin"),
             },
-            title="Espécies mais registradas",
+            title=t("most_recorded_species"),
         )
-        figura.update_layout(legend_title_text="Origem")
+        figura.update_layout(legend_title_text=t("origin"))
         st.plotly_chart(
             layout_grafico(figura, 470),
             width="stretch",
@@ -568,8 +582,8 @@ with aba_visao:
             color_discrete_map={
                 ROTULOS_ORIGEM[chave]: cor for chave, cor in CORES_PLOTLY.items()
             },
-            labels={"origin_label": "Origem", "species_count": "Espécies"},
-            title="Espécies por origem",
+            labels={"origin_label": t("origin"), "species_count": t("species")},
+            title=t("species_by_origin"),
         )
         figura.update_layout(showlegend=False)
         st.plotly_chart(
@@ -580,8 +594,13 @@ with aba_visao:
 
 with aba_mapa:
     modo_mapa = st.radio(
-        "Visualização do mapa",
+        t("map_view"),
         ["Pontos por espécie", "Mapa de calor", "Agrupamento espacial"],
+        format_func=lambda modo: {
+            "Pontos por espécie": t("map_points"),
+            "Mapa de calor": t("map_heat"),
+            "Agrupamento espacial": t("map_clusters"),
+        }[modo],
         horizontal=True,
     )
     mapa = criar_mapa(
@@ -592,31 +611,30 @@ with aba_mapa:
     registros_mapa = filtrados.dropna(subset=["decimal_latitude", "decimal_longitude"])
     if len(registros_mapa) > LIMITE_PONTOS_MAPA:
         st.caption(
-            f"Para manter o mapa responsivo, {formatar_numero(len(registros_mapa))} "
-            f"registros foram agregados em até {formatar_numero(LIMITE_PONTOS_MAPA)} "
-            "células espaciais."
+            t(
+                "map_responsive",
+                records=formatar_numero(len(registros_mapa)),
+                cells=formatar_numero(LIMITE_PONTOS_MAPA),
+            )
         )
     if mapa:
         st.pydeck_chart(mapa, width="stretch", height=610)
     else:
-        st.info("O recorte atual não possui coordenadas válidas.")
+        st.info(t("no_coordinates"))
 
     registros_detalhe = registros_mapa.head(LIMITE_RESULTADOS_SQL)
     if len(registros_mapa) > len(registros_detalhe):
-        st.caption(
-            "O seletor de detalhes mostra as primeiras "
-            f"{formatar_numero(len(registros_detalhe))} ocorrências do recorte."
-        )
+        st.caption(t("details_limited", count=formatar_numero(len(registros_detalhe))))
     ids_mapa = registros_detalhe["gbif_id"].tolist()
     nomes_ids = registros_detalhe.set_index("gbif_id")["canonical_name"].to_dict()
     ocorrencia_selecionada = st.selectbox(
-        "Detalhes de uma ocorrência",
+        t("occurrence_details"),
         [None, *ids_mapa],
         key=f"ocorrencia_mapa_{pais.codigo_iso}",
         format_func=lambda chave: (
-            "Selecione uma ocorrência"
+            t("select_occurrence")
             if chave is None
-            else f"GBIF {chave} — {nomes_ids.get(chave, 'Espécie não informada')}"
+            else f"GBIF {chave} — {nomes_ids.get(chave, t('species_not_informed'))}"
         ),
     )
     if ocorrencia_selecionada is not None:
@@ -637,13 +655,13 @@ with aba_mapa:
         ].rename(
             columns={
                 "gbif_id": "GBIF ID",
-                "canonical_name": "Espécie",
-                "family": "Família",
-                "order_name": "Ordem",
-                "event_date": "Data",
-                "basis_of_record": "Tipo",
-                "state_normalized": "Unidade",
-                "locality": "Localidade",
+                "canonical_name": t("species"),
+                "family": t("family"),
+                "order_name": t("order"),
+                "event_date": t("date"),
+                "basis_of_record": t("type"),
+                "state_normalized": t("unit"),
+                "locality": t("locality"),
                 "decimal_latitude": "Latitude",
                 "decimal_longitude": "Longitude",
             }
@@ -666,8 +684,8 @@ with aba_mapa:
             x="occurrence_count",
             y="basis_of_record",
             orientation="h",
-            labels={"occurrence_count": "Ocorrências", "basis_of_record": ""},
-            title="Tipo de registro",
+            labels={"occurrence_count": t("occurrences"), "basis_of_record": ""},
+            title=t("record_type"),
             color_discrete_sequence=["#7c3f58"],
         )
         st.plotly_chart(
@@ -681,8 +699,8 @@ with aba_mapa:
             x="occurrence_count",
             y="state_display",
             orientation="h",
-            labels={"occurrence_count": "Ocorrências", "state_display": ""},
-            title="Unidade administrativa informada",
+            labels={"occurrence_count": t("occurrences"), "state_display": ""},
+            title=t("informed_administrative_unit"),
             color_discrete_sequence=["#4f772d"],
         )
         st.plotly_chart(
@@ -700,8 +718,8 @@ with aba_temporal:
             anual,
             x="event_year",
             y="occurrence_count",
-            labels={"event_year": "Ano", "occurrence_count": "Ocorrências"},
-            title="Ocorrências por ano",
+            labels={"event_year": t("year"), "occurrence_count": t("occurrences")},
+            title=t("occurrences_by_year"),
             color_discrete_sequence=["#0f766e"],
         )
         st.plotly_chart(
@@ -714,8 +732,8 @@ with aba_temporal:
             mensal,
             x="period",
             y="occurrence_count",
-            labels={"period": "Mês", "occurrence_count": "Ocorrências"},
-            title="Ocorrências por mês",
+            labels={"period": t("month"), "occurrence_count": t("occurrences")},
+            title=t("occurrences_by_month"),
         )
         figura.update_traces(line_color="#2563eb")
         st.plotly_chart(
@@ -732,11 +750,11 @@ with aba_temporal:
         color="canonical_name",
         markers=True,
         labels={
-            "event_year": "Ano",
-            "occurrence_count": "Ocorrências",
-            "canonical_name": "Espécie",
+            "event_year": t("year"),
+            "occurrence_count": t("occurrences"),
+            "canonical_name": t("species"),
         },
-        title="Comparação temporal entre as espécies mais registradas",
+        title=t("species_temporal_comparison"),
     )
     st.plotly_chart(
         layout_grafico(figura, 430),
@@ -745,10 +763,10 @@ with aba_temporal:
     )
 
 with aba_especies:
-    st.subheader("Catálogo taxonômico")
+    st.subheader(t("taxonomic_catalog"))
     busca_taxonomica = st.text_input(
-        "Buscar por nome científico",
-        placeholder="Digite gênero ou espécie",
+        t("search_scientific_name"),
+        placeholder=t("scientific_name_placeholder"),
         key="busca_taxonomica",
     )
     taxonomia = catalogo_taxonomico(filtrados)
@@ -762,12 +780,12 @@ with aba_especies:
     st.dataframe(
         taxonomia.rename(
             columns={
-                "species_key": "Chave taxonômica",
-                "canonical_name": "Nome científico",
-                "family": "Família",
-                "order_name": "Ordem",
-                "occurrence_count": "Ocorrências",
-                "origin_status": "Origem",
+                "species_key": t("taxonomic_key"),
+                "canonical_name": t("scientific_name"),
+                "family": t("family"),
+                "order_name": t("order"),
+                "occurrence_count": t("occurrences"),
+                "origin_status": t("origin"),
                 "iucn_category": "IUCN",
             }
         ),
@@ -777,11 +795,11 @@ with aba_especies:
     )
 
 with aba_comparacao:
-    st.subheader("Comparação entre países")
+    st.subheader(t("country_comparison"))
     coluna_pais_a, coluna_pais_b = st.columns(2)
     with coluna_pais_a:
         codigo_comparacao_a = st.selectbox(
-            "Primeiro país",
+            t("first_country"),
             codigos_paises,
             index=codigos_paises.index("BR"),
             format_func=lambda codigo: f"{nomes_por_codigo[codigo]} ({codigo})",
@@ -789,7 +807,7 @@ with aba_comparacao:
         )
     with coluna_pais_b:
         codigo_comparacao_b = st.selectbox(
-            "Segundo país",
+            t("second_country"),
             codigos_paises,
             index=codigos_paises.index("CH"),
             format_func=lambda codigo: f"{nomes_por_codigo[codigo]} ({codigo})",
@@ -797,7 +815,7 @@ with aba_comparacao:
         )
 
     if codigo_comparacao_a == codigo_comparacao_b:
-        st.warning("Selecione dois países diferentes para realizar a comparação.")
+        st.warning(t("different_countries"))
     else:
         fonte_a = obter_dados(schema, codigo_comparacao_a)
         fonte_b = obter_dados(schema, codigo_comparacao_b)
@@ -812,11 +830,7 @@ with aba_comparacao:
                 )
                 if tabela.empty
             ]
-            st.warning(
-                "Não há dados armazenados para: "
-                f"{', '.join(sem_dados)}. Selecione o país no filtro principal "
-                "para executar sua primeira atualização."
-            )
+            st.warning(t("countries_without_data", countries=", ".join(sem_dados)))
         else:
             anos_comparacao = pd.concat(
                 [dados_a["event_year"], dados_b["event_year"]]
@@ -827,7 +841,7 @@ with aba_comparacao:
                     int(anos_comparacao.max()),
                 )
                 intervalo_comparacao = st.slider(
-                    "Período da comparação",
+                    t("comparison_period"),
                     min_value=limites_comparacao[0],
                     max_value=limites_comparacao[1],
                     value=limites_comparacao,
@@ -852,23 +866,23 @@ with aba_comparacao:
             resumo_b = comparacao.resumo.iloc[1]
             metricas_comparacao = st.columns(4)
             metricas_comparacao[0].metric(
-                f"Espécies — {codigo_comparacao_a}",
+                t("species_code", code=codigo_comparacao_a),
                 formatar_numero(int(resumo_a["species"])),
             )
             metricas_comparacao[1].metric(
-                f"Espécies — {codigo_comparacao_b}",
+                t("species_code", code=codigo_comparacao_b),
                 formatar_numero(int(resumo_b["species"])),
             )
             metricas_comparacao[2].metric(
-                f"Ocorrências — {codigo_comparacao_a}",
+                t("occurrences_code", code=codigo_comparacao_a),
                 formatar_numero(int(resumo_a["occurrences"])),
             )
             metricas_comparacao[3].metric(
-                f"Ocorrências — {codigo_comparacao_b}",
+                t("occurrences_code", code=codigo_comparacao_b),
                 formatar_numero(int(resumo_b["occurrences"])),
             )
 
-            st.subheader("Distribuição temporal")
+            st.subheader(t("temporal_distribution"))
             coluna_bruta, coluna_normalizada = st.columns(2)
             with coluna_bruta:
                 figura = px.line(
@@ -878,11 +892,11 @@ with aba_comparacao:
                     color="country_name",
                     markers=True,
                     labels={
-                        "event_year": "Ano",
-                        "occurrence_count": "Ocorrências",
-                        "country_name": "País",
+                        "event_year": t("year"),
+                        "occurrence_count": t("occurrences"),
+                        "country_name": t("country"),
                     },
-                    title="Contagens anuais",
+                    title=t("annual_counts"),
                 )
                 st.plotly_chart(
                     layout_grafico(figura, 410),
@@ -897,11 +911,11 @@ with aba_comparacao:
                     color="country_name",
                     markers=True,
                     labels={
-                        "event_year": "Ano",
-                        "sample_percentage": "% da amostra do país",
-                        "country_name": "País",
+                        "event_year": t("year"),
+                        "sample_percentage": t("country_sample_pct"),
+                        "country_name": t("country"),
                     },
-                    title="Distribuição anual normalizada",
+                    title=t("normalized_annual_distribution"),
                 )
                 st.plotly_chart(
                     layout_grafico(figura, 410),
@@ -909,7 +923,7 @@ with aba_comparacao:
                     config={"displayModeBar": False},
                 )
 
-            st.subheader("Métricas normalizadas e cobertura")
+            st.subheader(t("normalized_metrics"))
             tabela_normalizada = comparacao.resumo[
                 [
                     "country_name",
@@ -921,12 +935,12 @@ with aba_comparacao:
                 ]
             ].rename(
                 columns={
-                    "country_name": "País",
-                    "occurrences_per_species": "Registros por espécie",
-                    "years_with_records": "Anos com registros",
-                    "period": "Período",
-                    "records_with_date_pct": "% com data",
-                    "records_with_coordinates_pct": "% com coordenadas",
+                    "country_name": t("country"),
+                    "occurrences_per_species": t("records_per_species"),
+                    "years_with_records": t("years_with_records"),
+                    "period": t("period"),
+                    "records_with_date_pct": t("with_date_pct"),
+                    "records_with_coordinates_pct": t("with_coordinates_pct"),
                 }
             )
             st.dataframe(
@@ -934,44 +948,46 @@ with aba_comparacao:
                 hide_index=True,
                 width="stretch",
                 column_config={
-                    "Registros por espécie": st.column_config.NumberColumn(
+                    t("records_per_species"): st.column_config.NumberColumn(
                         format="%.1f"
                     ),
-                    "% com data": st.column_config.NumberColumn(format="%.1f%%"),
-                    "% com coordenadas": st.column_config.NumberColumn(format="%.1f%%"),
+                    t("with_date_pct"): st.column_config.NumberColumn(format="%.1f%%"),
+                    t("with_coordinates_pct"): st.column_config.NumberColumn(
+                        format="%.1f%%"
+                    ),
                 },
             )
 
-            st.subheader("Espécies compartilhadas e exclusivas")
+            st.subheader(t("shared_exclusive_species"))
             colunas_sobreposicao = st.columns(4)
             colunas_sobreposicao[0].metric(
-                "Compartilhadas",
+                t("shared"),
                 formatar_numero(len(comparacao.especies_compartilhadas)),
             )
             colunas_sobreposicao[1].metric(
-                f"Exclusivas — {codigo_comparacao_a}",
+                t("exclusive_code", code=codigo_comparacao_a),
                 formatar_numero(len(comparacao.especies_exclusivas_a)),
             )
             colunas_sobreposicao[2].metric(
-                f"Exclusivas — {codigo_comparacao_b}",
+                t("exclusive_code", code=codigo_comparacao_b),
                 formatar_numero(len(comparacao.especies_exclusivas_b)),
             )
             colunas_sobreposicao[3].metric(
-                "Similaridade de Jaccard",
+                t("jaccard_similarity"),
                 f"{comparacao.similaridade_jaccard:.1f}%",
             )
 
             tabela_compartilhadas = comparacao.especies_compartilhadas.rename(
                 columns={
-                    "species_key": "Chave taxonômica",
-                    "canonical_name": "Nome científico",
-                    "occurrences_a": f"Ocorrências — {codigo_comparacao_a}",
-                    "occurrences_b": f"Ocorrências — {codigo_comparacao_b}",
+                    "species_key": t("taxonomic_key"),
+                    "canonical_name": t("scientific_name"),
+                    "occurrences_a": t("occurrences_code", code=codigo_comparacao_a),
+                    "occurrences_b": t("occurrences_code", code=codigo_comparacao_b),
                 }
             )
             coluna_compartilhadas, coluna_exclusivas = st.columns([1.25, 1])
             with coluna_compartilhadas:
-                st.caption("Espécies presentes nos dois conjuntos")
+                st.caption(t("species_in_both"))
                 st.dataframe(
                     tabela_compartilhadas,
                     hide_index=True,
@@ -979,7 +995,7 @@ with aba_comparacao:
                     height=360,
                 )
             with coluna_exclusivas:
-                st.caption("Espécies exclusivas por conjunto")
+                st.caption(t("exclusive_by_set"))
                 exclusivas_a = comparacao.especies_exclusivas_a.assign(
                     country=codigo_comparacao_a
                 ).rename(columns={"occurrences_a": "occurrence_count"})
@@ -990,10 +1006,10 @@ with aba_comparacao:
                     [exclusivas_a, exclusivas_b], ignore_index=True
                 ).rename(
                     columns={
-                        "species_key": "Chave taxonômica",
-                        "canonical_name": "Nome científico",
-                        "occurrence_count": "Ocorrências",
-                        "country": "País",
+                        "species_key": t("taxonomic_key"),
+                        "canonical_name": t("scientific_name"),
+                        "occurrence_count": t("occurrences"),
+                        "country": t("country"),
                     }
                 )
                 st.dataframe(
@@ -1014,50 +1030,47 @@ with aba_comparacao:
                 else len(fonte_b.dados)
             )
             st.html(
-                f"""
-                <div class="quality-note">
-                <b>Cuidado metodológico.</b> Mais ocorrências ou espécies registradas
-                não significam maior abundância nem maior biodiversidade real. A
-                comparação usa amostras de {formatar_numero(recebidos_a)} registros
-                recebidos para {nomes_por_codigo[codigo_comparacao_a]} e
-                {formatar_numero(recebidos_b)} para
-                {nomes_por_codigo[codigo_comparacao_b]}. Diferenças também refletem
-                área, cobertura temporal, esforço de coleta, instituições participantes
-                e frequência de publicação no GBIF. A curva normalizada mostra a
-                distribuição interna da amostra, não corrige integralmente esses vieses.
-                </div>
-                """
+                '<div class="quality-note">'
+                + t(
+                    "methodological_caution",
+                    records_a=formatar_numero(recebidos_a),
+                    country_a=nomes_por_codigo[codigo_comparacao_a],
+                    records_b=formatar_numero(recebidos_b),
+                    country_b=nomes_por_codigo[codigo_comparacao_b],
+                )
+                + "</div>"
             )
 
 with aba_relatorio:
-    st.subheader("Relatório automático")
-    st.caption(
-        "O PDF reproduz o recorte atual e reúne resumo, indicadores, gráficos, "
-        "mapa, metodologia, limitações, fonte e data de geração."
-    )
+    st.subheader(t("automatic_report"))
+    st.caption(t("report_description"))
     nomes_selecionados = [nomes_especies[chave] for chave in especies]
     periodo_relatorio = (
         f"{intervalo_anos[0]}–{intervalo_anos[1]}"
         if intervalo_anos
-        else "Todos os anos disponíveis"
+        else t("all_available_years")
     )
     filtros_relatorio = {
-        "País": f"{pais.nome} ({pais.codigo_iso})",
-        "Espécies": ", ".join(nomes_selecionados) or "Todas as espécies",
-        "Período": periodo_relatorio,
-        "Origem": ", ".join(ROTULOS_ORIGEM.get(item, item) for item in origens)
-        or "Todas as classificações",
-        "Tipo de registro": ", ".join(tipos) or "Todos os tipos",
-        "Unidade administrativa": ", ".join(rotulo_estado(item) for item in estados)
-        or "Todas as unidades",
-        "Atualização da fonte": ultima_atualizacao,
+        t("country"): f"{pais.nome} ({pais.codigo_iso})",
+        t("species"): ", ".join(nomes_selecionados) or t("all_species"),
+        t("period"): periodo_relatorio,
+        t("origin"): ", ".join(ROTULOS_ORIGEM.get(item, item) for item in origens)
+        or t("all_classifications"),
+        t("record_type"): ", ".join(tipos) or t("all_record_types"),
+        t("administrative_unit"): ", ".join(rotulo_estado(item) for item in estados)
+        or t("all_units"),
+        t("source_update"): ultima_atualizacao,
     }
     st.markdown(
-        f"**Consulta:** {pais.nome} · {periodo_relatorio} · "
-        f"{formatar_numero(indicadores['occurrences'])} ocorrências · "
-        f"{formatar_numero(indicadores['species'])} espécies"
+        t(
+            "query_summary",
+            country=pais.nome,
+            period=periodo_relatorio,
+            occurrences=formatar_numero(indicadores["occurrences"]),
+            species=formatar_numero(indicadores["species"]),
+        )
     )
-    with st.spinner("Preparando relatório reproduzível..."):
+    with st.spinner(t("preparing_report")):
         relatorio_pdf = obter_relatorio_pdf(
             filtrados,
             pais.nome,
@@ -1067,7 +1080,7 @@ with aba_relatorio:
         )
     sufixo_periodo = periodo_relatorio.replace("–", "-").replace(" ", "_")
     st.download_button(
-        "Baixar relatório PDF",
+        t("download_report"),
         data=relatorio_pdf,
         file_name=(
             f"{PROJECT_SLUG}_relatorio_{pais.codigo_iso.lower()}_{sufixo_periodo}.pdf"
@@ -1076,58 +1089,54 @@ with aba_relatorio:
         icon=":material/picture_as_pdf:",
         type="primary",
     )
-    st.caption(
-        "A assinatura incluída no PDF identifica o conjunto de GBIF IDs usado. "
-        "Para reproduzir o relatório, reaplique os filtros registrados usando a mesma fonte."
-    )
+    st.caption(t("report_signature"))
 
 with aba_qualidade:
     qualidade = indicadores_qualidade(filtrados)
     total = max(len(filtrados), 1)
 
-    st.subheader("Aproveitamento da última carga")
+    st.subheader(t("last_load_usage"))
     resumo_importacao = resultado.resumo_importacao
     if resumo_importacao:
         colunas_funil = st.columns(4)
         colunas_funil[0].metric(
-            "Recebidos", formatar_numero(resumo_importacao.registros_recebidos)
+            t("received"), formatar_numero(resumo_importacao.registros_recebidos)
         )
         colunas_funil[1].metric(
-            "Aproveitados", formatar_numero(resumo_importacao.registros_salvos)
+            t("used"), formatar_numero(resumo_importacao.registros_salvos)
         )
         colunas_funil[2].metric(
-            "Descartados", formatar_numero(resumo_importacao.registros_descartados)
+            t("discarded"), formatar_numero(resumo_importacao.registros_descartados)
         )
         colunas_funil[3].metric(
-            "Aproveitamento", f"{resumo_importacao.percentual_aproveitado:.1f}%"
+            t("usage"), f"{resumo_importacao.percentual_aproveitado:.1f}%"
         )
         st.caption(
-            f"Sem identificação no nível de espécie: "
-            f"{formatar_numero(resumo_importacao.sem_nivel_especie)} registros."
+            t(
+                "without_species_level",
+                count=formatar_numero(resumo_importacao.sem_nivel_especie),
+            )
         )
     else:
-        st.caption(
-            "O resumo detalhado não está disponível para esta carga. "
-            "Os indicadores dos registros aproveitados permanecem abaixo."
-        )
+        st.caption(t("summary_unavailable"))
 
-    st.subheader("Indicadores dos registros aproveitados")
+    st.subheader(t("used_record_indicators"))
     colunas_qualidade = st.columns(4)
     itens_qualidade = [
-        ("Sem data", qualidade["missing_date"]),
-        ("Data apenas mensal", qualidade["monthly_date"]),
-        ("Coordenada ausente/inválida", qualidade["invalid_coordinates"]),
-        ("Duplicidade potencial", qualidade["potential_duplicate"]),
+        (t("missing_date"), qualidade["missing_date"]),
+        (t("monthly_date"), qualidade["monthly_date"]),
+        (t("invalid_coordinates"), qualidade["invalid_coordinates"]),
+        (t("potential_duplicate"), qualidade["potential_duplicate"]),
     ]
     for coluna, (rotulo, valor) in zip(colunas_qualidade, itens_qualidade, strict=True):
         coluna.metric(rotulo, formatar_numero(valor), f"{100 * valor / total:.1f}%")
 
     colunas_qualidade = st.columns(4)
     itens_qualidade = [
-        ("Problema indicado pelo GBIF", qualidade["gbif_issue"]),
-        ("Possivelmente fora do país", qualidade["potential_outside_country"]),
-        ("Sem localidade", qualidade["missing_locality"]),
-        ("Unidade inesperada", qualidade["unexpected_state"]),
+        (t("gbif_issue"), qualidade["gbif_issue"]),
+        (t("potential_outside_country"), qualidade["potential_outside_country"]),
+        (t("missing_locality"), qualidade["missing_locality"]),
+        (t("unexpected_unit"), qualidade["unexpected_state"]),
     ]
     for coluna, (rotulo, valor) in zip(colunas_qualidade, itens_qualidade, strict=True):
         coluna.metric(rotulo, formatar_numero(valor), f"{100 * valor / total:.1f}%")
@@ -1141,11 +1150,11 @@ with aba_qualidade:
         .reset_index(name="record_count")
     )
     rotulos_precisao = {
-        "DAY": "Dia",
-        "MONTH": "Mês",
-        "YEAR": "Ano",
-        "UNKNOWN": "Desconhecida",
-        "MISSING": "Sem data",
+        "DAY": t("day"),
+        "MONTH": t("month"),
+        "YEAR": t("year"),
+        "UNKNOWN": t("unknown"),
+        "MISSING": t("missing_date"),
     }
     precisao["precision_display"] = precisao["date_precision"].map(
         lambda valor: rotulos_precisao.get(valor, valor)
@@ -1155,16 +1164,16 @@ with aba_qualidade:
         x="occurrence_count",
         y="basis_of_record",
         orientation="h",
-        labels={"occurrence_count": "Registros", "basis_of_record": ""},
-        title="Distribuição por tipo de evidência",
+        labels={"occurrence_count": t("records"), "basis_of_record": ""},
+        title=t("evidence_distribution"),
         color_discrete_sequence=["#4f772d"],
     )
     figura_precisao = px.bar(
         precisao,
         x="precision_display",
         y="record_count",
-        labels={"precision_display": "Precisão", "record_count": "Registros"},
-        title="Precisão das datas",
+        labels={"precision_display": t("precision"), "record_count": t("records")},
+        title=t("date_precision"),
         color_discrete_sequence=["#7c3f58"],
     )
     coluna_evidencia, coluna_precisao = st.columns(2)
@@ -1190,8 +1199,8 @@ with aba_qualidade:
             x="record_count",
             y="issue",
             orientation="h",
-            labels={"record_count": "Registros", "issue": ""},
-            title="Alertas de ocorrência",
+            labels={"record_count": t("records"), "issue": ""},
+            title=t("occurrence_alerts"),
             color_discrete_sequence=["#2563eb"],
         )
         st.plotly_chart(
@@ -1205,8 +1214,8 @@ with aba_qualidade:
             x="record_count",
             y="issue",
             orientation="h",
-            labels={"record_count": "Registros", "issue": ""},
-            title="Alertas taxonômicos",
+            labels={"record_count": t("records"), "issue": ""},
+            title=t("taxonomic_alerts"),
             color_discrete_sequence=["#c2413b"],
         )
         st.plotly_chart(
@@ -1214,22 +1223,16 @@ with aba_qualidade:
             width="stretch",
             config={"displayModeBar": False},
         )
-    st.html(
-        """
-        <div class="quality-note">
-        Alertas do GBIF registram interpretações e inconsistências potenciais. Eles não invalidam automaticamente uma ocorrência. Registros candidatos a duplicidade exigem revisão do evento de coleta antes de qualquer remoção.
-        </div>
-        """
-    )
+    st.html(f'<div class="quality-note">{t("gbif_alert_note")}</div>')
 
 with aba_dados:
     busca = st.text_input(
-        "Buscar nos registros",
-        placeholder="Espécie, localidade ou unidade administrativa",
+        t("search_records"),
+        placeholder=t("search_records_placeholder"),
     )
     tabela = filtrados.copy()
     if len(busca.strip()) > 200:
-        st.warning("A busca deve ter no máximo 200 caracteres.")
+        st.warning(t("search_too_long"))
         tabela = tabela.iloc[0:0]
     elif busca.strip():
         termo = busca.strip()
@@ -1243,6 +1246,11 @@ with aba_dados:
             .str.contains(termo, case=False, regex=False)
         )
         tabela = tabela.loc[mascara_busca]
+    coluna_origem_tabela = t("origin")
+    coluna_unidade_tabela = t("unit")
+    coluna_data_tabela = t("date")
+    coluna_latitude = "Latitude"
+    coluna_longitude = "Longitude"
     tabela_exibicao = tabela[
         [
             "gbif_id",
@@ -1259,26 +1267,31 @@ with aba_dados:
     ].rename(
         columns={
             "gbif_id": "GBIF ID",
-            "country_name": "País",
-            "canonical_name": "Espécie",
-            "origin_status": "Origem",
-            "event_date": "Data",
-            "state_normalized": "Unidade",
-            "locality": "Localidade",
-            "basis_of_record": "Tipo",
-            "decimal_latitude": "Latitude",
-            "decimal_longitude": "Longitude",
+            "country_name": t("country"),
+            "canonical_name": t("species"),
+            "origin_status": coluna_origem_tabela,
+            "event_date": coluna_data_tabela,
+            "state_normalized": coluna_unidade_tabela,
+            "locality": t("locality"),
+            "basis_of_record": t("type"),
+            "decimal_latitude": coluna_latitude,
+            "decimal_longitude": coluna_longitude,
         }
     )
-    tabela_exibicao["Origem"] = tabela_exibicao["Origem"].map(ROTULOS_ORIGEM)
-    tabela_exibicao["Unidade"] = tabela_exibicao["Unidade"].map(rotulo_estado)
+    tabela_exibicao[coluna_origem_tabela] = tabela_exibicao[coluna_origem_tabela].map(
+        ROTULOS_ORIGEM
+    )
+    tabela_exibicao[coluna_unidade_tabela] = tabela_exibicao[coluna_unidade_tabela].map(
+        rotulo_estado
+    )
     tabela_navegador = tabela_exibicao.head(LIMITE_RESULTADOS_SQL)
-    st.caption(f"{formatar_numero(len(tabela_exibicao))} registros")
+    st.caption(t("record_count", count=formatar_numero(len(tabela_exibicao))))
     if len(tabela_exibicao) > len(tabela_navegador):
         st.caption(
-            "A tabela mostra os primeiros "
-            f"{formatar_numero(len(tabela_navegador))} registros; o CSV preserva "
-            "todo o recorte filtrado."
+            t(
+                "table_limited",
+                shown=formatar_numero(len(tabela_navegador)),
+            )
         )
     st.dataframe(
         tabela_navegador,
@@ -1286,24 +1299,22 @@ with aba_dados:
         width="stretch",
         height=540,
         column_config={
-            "Data": st.column_config.DatetimeColumn(format="DD/MM/YYYY HH:mm"),
-            "Latitude": st.column_config.NumberColumn(format="%.5f"),
-            "Longitude": st.column_config.NumberColumn(format="%.5f"),
+            coluna_data_tabela: st.column_config.DatetimeColumn(
+                format="DD/MM/YYYY HH:mm"
+            ),
+            coluna_latitude: st.column_config.NumberColumn(format="%.5f"),
+            coluna_longitude: st.column_config.NumberColumn(format="%.5f"),
         },
     )
     st.download_button(
-        "Baixar CSV",
+        t("download_csv"),
         data=tabela_exibicao.to_csv(index=False).encode("utf-8-sig"),
         file_name=f"{PROJECT_SLUG}_ocorrencias_filtradas.csv",
         mime="text/csv",
         icon=":material/download:",
     )
 
-with st.expander("Metodologia e limitações"):
-    st.markdown(
-        """
-        Os pontos representam ocorrências publicadas no GBIF e filtradas pelo limite oficial da porção brasileira da Região Hidrográfica do Paraná. As contagens refletem coleta e publicação, não abundância biológica. A fonte atual é uma amostra de 5.000 registros do pré-filtro; comparações ecológicas exigem a base integral e controle do esforço amostral.
-        """
-    )
+with st.expander(t("methodology_limitations")):
+    st.markdown(t("methodology_text"))
 
-st.caption(f"{APP_NAME} · Dados de ocorrências fornecidos pelo GBIF.")
+st.caption(t("footer"))

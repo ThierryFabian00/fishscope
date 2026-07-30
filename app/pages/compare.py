@@ -2,18 +2,14 @@
 
 import streamlit as st
 
-st.title("Comparar")
-st.write(
-    "A comparação entre países permanece disponível na aba **Comparação** "
-    "da página Explorar."
-)
-st.caption(
-    "Essa organização preserva a análise existente enquanto a experiência "
-    "de comparação é preparada para funcionar como uma página independente."
-)
+from src.i18n import t
+
+st.title(t("compare"))
+st.write(t("compare_intro"))
+st.caption(t("compare_note"))
 
 if st.button(
-    "Abrir comparação em Explorar",
+    t("open_comparison"),
     type="primary",
     icon=":material/compare_arrows:",
 ):
