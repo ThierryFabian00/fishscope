@@ -1,8 +1,17 @@
 """Ponto de entrada e navegação pública do FishScope."""
 
+import sys
+from pathlib import Path
+
 import streamlit as st
 
-from src.i18n import (
+# O Streamlit Cloud executa este arquivo a partir de ``app/`` e não inclui
+# necessariamente a raiz do repositório no caminho de importação.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.i18n import (  # noqa: E402
     LANGUAGE_WIDGET_KEY,
     SUPPORTED_LANGUAGES,
     initialize_language,
