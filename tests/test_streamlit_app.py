@@ -53,20 +53,13 @@ class TestPaginaInicial(unittest.TestCase):
 
         self.assertFalse(app.exception)
         self.assertEqual(app.session_state["language"], "en")
-        self.assertEqual(
-            [tab.label for tab in app.tabs],
-            [
-                "Overview",
-                "Map",
-                "Temporal",
-                "Species",
-                "Comparison",
-                "Report",
-                "Quality",
-                "Data",
-            ],
+        self.assertFalse(app.tabs)
+        self.assertTrue(
+            any(item.value == "Select a country to begin." for item in app.info)
         )
-        self.assertTrue(any(item.label == "Country" for item in app.selectbox))
+        seletor_pais = next(item for item in app.selectbox if item.label == "Country")
+        self.assertIsNone(seletor_pais.value)
+        self.assertIn("Brasil (BR)", seletor_pais.options)
 
     def test_renderiza_paginas_auxiliares(self):
         comparar = AppTest.from_file(
@@ -128,6 +121,15 @@ class TestStreamlitApp(unittest.TestCase):
                 for item in app.caption
             )
         )
+        self.assertFalse(app.tabs)
+        self.assertTrue(
+            any(item.value == "Selecione um país para começar." for item in app.info)
+        )
+        seletor_pais = next(item for item in app.selectbox if item.label == "País")
+        self.assertIsNone(seletor_pais.value)
+        seletor_pais.set_value("BR").run()
+
+        self.assertFalse(app.exception)
         self.assertEqual(
             [aba.label for aba in app.tabs],
             [
@@ -153,6 +155,17 @@ class TestStreamlitApp(unittest.TestCase):
         self.assertEqual(metricas["Duplicidade potencial"], "1.299")
         seletor_pais = next(item for item in app.selectbox if item.label == "País")
         self.assertEqual(seletor_pais.value, "BR")
+        self.assertTrue(any(item.label == "Aplicar filtros" for item in app.button))
+        self.assertTrue(any(item.label == "Limpar filtros" for item in app.button))
+        self.assertTrue(
+            any(
+                "Brasil • Todas as espécies • Todo o período disponível" in item.value
+                for item in app.markdown
+            )
+        )
+        self.assertTrue(
+            any(item.value == "3.764 registros encontrados" for item in app.caption)
+        )
         self.assertEqual(app.radio[0].label, "Visualização do mapa")
         self.assertEqual(app.radio[0].value, "Pontos por espécie")
         self.assertEqual(
@@ -180,14 +193,20 @@ class TestStreamlitApp(unittest.TestCase):
 
         opcoes_especies = app.multiselect[0].options
         self.assertGreaterEqual(len(opcoes_especies), 2)
-        app.multiselect[0].set_value(opcoes_especies[:2]).run()
+        app.multiselect[0].set_value(opcoes_especies[:2])
+        next(
+            item for item in app.button if item.label == "Aplicar filtros"
+        ).click().run()
         self.assertFalse(app.exception)
         self.assertEqual(len(app.multiselect[0].value), 2)
         metricas_filtradas = {metrica.label: metrica.value for metrica in app.metric}
         self.assertEqual(metricas_filtradas["Espécies"], "2")
         self.assertLess(int(metricas_filtradas["Ocorrências"].replace(".", "")), 3764)
 
-        app.multiselect[0].set_value([]).run()
+        app.multiselect[0].set_value([])
+        next(
+            item for item in app.button if item.label == "Aplicar filtros"
+        ).click().run()
         for rotulo in ("Origem", "Tipo de registro", "Unidade administrativa"):
             seletor = next(item for item in app.multiselect if item.label == rotulo)
             self.assertGreater(len(seletor.options), 0)
@@ -200,11 +219,17 @@ class TestStreamlitApp(unittest.TestCase):
             seletor_atual.set_value([]).run()
 
         periodo = next(item for item in app.slider if item.label == "Período")
-        periodo.set_range(periodo.min, periodo.min).run()
+        periodo.set_range(periodo.min, periodo.min)
+        next(
+            item for item in app.button if item.label == "Aplicar filtros"
+        ).click().run()
         self.assertFalse(app.exception)
         periodo_atual = next(item for item in app.slider if item.label == "Período")
         self.assertEqual(list(periodo_atual.value), [periodo.min, periodo.min])
-        periodo_atual.set_range(periodo_atual.min, periodo_atual.max).run()
+        periodo_atual.set_range(periodo_atual.min, periodo_atual.max)
+        next(
+            item for item in app.button if item.label == "Aplicar filtros"
+        ).click().run()
 
         seletor_pais = next(item for item in app.selectbox if item.label == "País")
         seletor_pais.set_value("CH").run()
@@ -219,6 +244,14 @@ class TestStreamlitApp(unittest.TestCase):
             self.assertFalse(app.info)
         else:
             self.assertTrue(any("Suíça (CH)" in item.value for item in app.info))
+
+        next(
+            item for item in app.button if item.label == "Limpar filtros"
+        ).click().run()
+        self.assertFalse(app.exception)
+        seletor_pais = next(item for item in app.selectbox if item.label == "País")
+        self.assertIsNone(seletor_pais.value)
+        self.assertFalse(app.tabs)
 
 
 if __name__ == "__main__":
