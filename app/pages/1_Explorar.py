@@ -87,6 +87,27 @@ ROTULOS_ESTADO = {
     "Nao informado": t("not_informed"),
 }
 
+CHAVES_FILTROS_DEPENDENTES = (
+    "explore_species",
+    "explore_period",
+    "explore_record_types",
+    "explore_origins",
+    "explore_states",
+)
+CHAVE_FILTRO_PAIS = "explore_country"
+
+
+def limpar_filtros_dependentes() -> None:
+    """Descarta seleções que não são válidas ao trocar o país."""
+    for chave in CHAVES_FILTROS_DEPENDENTES:
+        st.session_state.pop(chave, None)
+
+
+def limpar_todos_os_filtros() -> None:
+    """Restaura a página Explorar ao estado inicial neutro."""
+    st.session_state.pop(CHAVE_FILTRO_PAIS, None)
+    limpar_filtros_dependentes()
+
 
 def aplicar_estilo() -> None:
     st.html(
@@ -323,6 +344,9 @@ def criar_mapa(
 
 aplicar_estilo()
 
+st.title(APP_NAME)
+st.caption(t("app_caption"))
+
 paises_disponiveis = listar_paises()
 nomes_por_codigo = {pais.codigo_iso: pais.nome for pais in paises_disponiveis}
 codigos_paises = [pais.codigo_iso for pais in paises_disponiveis]
@@ -331,21 +355,20 @@ with st.sidebar:
     st.header(t("filters"))
     codigo_pais = st.selectbox(
         t("country"),
-        codigos_paises,
-        index=codigos_paises.index(PAIS_PADRAO),
-        format_func=lambda codigo: f"{nomes_por_codigo[codigo]} ({codigo})",
-    )
-    forcar_atualizacao = st.button(
-        t("update_gbif"),
-        icon=":material/refresh:",
-        width="stretch",
-        disabled=CONFIGURACAO_BANCO.database_write_url is None,
-        help=(
-            t("update_help") if CONFIGURACAO_BANCO.database_write_url is None else None
+        [None, *codigos_paises],
+        index=0,
+        format_func=lambda codigo: (
+            t("select_country")
+            if codigo is None
+            else f"{nomes_por_codigo[codigo]} ({codigo})"
         ),
+        key=CHAVE_FILTRO_PAIS,
+        on_change=limpar_filtros_dependentes,
     )
-    if CONFIGURACAO_BANCO.database_write_url is None:
-        st.caption(t("update_disabled"))
+
+if codigo_pais is None:
+    st.info(t("select_country_to_begin"))
+    st.stop()
 
 pais = obter_pais(codigo_pais)
 schema = CONFIGURACAO_BANCO.schema
@@ -368,39 +391,6 @@ def atualizar_progresso(evento: ProgressoSincronizacao) -> None:
             valor, text=translate_progress(evento.mensagem)
         )
 
-
-database_write_url = CONFIGURACAO_BANCO.database_write_url
-if forcar_atualizacao and database_write_url:
-    try:
-        sincronizacao = sincronizar_dados_pais(
-            database_write_url,
-            schema,
-            pais.codigo_iso,
-            forcar_atualizacao=forcar_atualizacao,
-            callback=atualizar_progresso,
-        )
-        if sincronizacao.fonte == "GBIF":
-            obter_dados.clear()
-            st.sidebar.success(
-                t(
-                    "update_complete",
-                    count=formatar_numero(sincronizacao.registros_salvos),
-                )
-            )
-    except (ErroGBIF, psycopg.Error, ValueError) as erro:
-        mensagem = mensagem_erro_segura(erro, t("unexpected_update_error"))
-        LOGGER.error("Falha controlada na atualização: %s", mensagem)
-        st.sidebar.error(
-            t(
-                "update_failed",
-                message=translate_error(mensagem, "unexpected_update_error"),
-            )
-        )
-    finally:
-        if widget_progresso["valor"] is not None:
-            widget_progresso["valor"].empty()
-elif forcar_atualizacao:
-    st.sidebar.warning(t("update_unavailable"))
 
 try:
     resultado = obter_dados(schema, pais.codigo_iso)
@@ -431,44 +421,110 @@ with st.sidebar:
             strict=True,
         )
     )
-    especies = st.multiselect(
-        t("species"),
-        catalogo_especies["species_key"].tolist(),
-        placeholder=t("all_species"),
-        format_func=lambda chave: nomes_especies.get(chave, chave),
-    )
-    origens_disponiveis = sorted(dados["origin_status"].dropna().unique())
-    origens = st.multiselect(
-        t("origin"),
-        origens_disponiveis,
-        placeholder=t("all_classifications"),
-        format_func=lambda valor: ROTULOS_ORIGEM.get(valor, valor),
-    )
     anos = dados["event_year"].dropna().astype(int)
-    intervalo_anos = None
-    if not anos.empty:
-        limites_anos = (int(anos.min()), int(anos.max()))
-        intervalo_anos = st.slider(
-            t("period"),
-            min_value=limites_anos[0],
-            max_value=limites_anos[1],
-            value=limites_anos,
-        )
+    limites_anos = (int(anos.min()), int(anos.max())) if not anos.empty else None
     tipos_disponiveis = sorted(dados["basis_of_record"].dropna().unique())
-    tipos = st.multiselect(
-        t("record_type"),
-        tipos_disponiveis,
-        placeholder=t("all_record_types"),
+
+    with st.form("explore_primary_filters", border=False):
+        especies = st.multiselect(
+            t("species"),
+            catalogo_especies["species_key"].tolist(),
+            placeholder=t("all_species"),
+            format_func=lambda chave: nomes_especies.get(chave, chave),
+            key="explore_species",
+        )
+        intervalo_anos = None
+        if limites_anos is not None:
+            intervalo_anos = st.slider(
+                t("period"),
+                min_value=limites_anos[0],
+                max_value=limites_anos[1],
+                value=limites_anos,
+                key="explore_period",
+            )
+        tipos = st.multiselect(
+            t("record_type"),
+            tipos_disponiveis,
+            placeholder=t("all_record_types"),
+            key="explore_record_types",
+        )
+        st.form_submit_button(
+            t("apply_filters"),
+            type="primary",
+            width="stretch",
+        )
+
+    st.button(
+        t("clear_filters"),
+        on_click=limpar_todos_os_filtros,
+        width="stretch",
     )
-    estados_disponiveis = sorted(dados["state_normalized"].dropna().unique())
-    estados = st.multiselect(
-        t("administrative_unit"),
-        estados_disponiveis,
-        placeholder=t("all_units"),
-        format_func=rotulo_estado,
-    )
+
+    with st.expander(t("advanced_filters")):
+        origens_disponiveis = sorted(dados["origin_status"].dropna().unique())
+        origens = st.multiselect(
+            t("origin"),
+            origens_disponiveis,
+            placeholder=t("all_classifications"),
+            format_func=lambda valor: ROTULOS_ORIGEM.get(valor, valor),
+            key="explore_origins",
+        )
+        estados_disponiveis = sorted(dados["state_normalized"].dropna().unique())
+        estados = st.multiselect(
+            t("administrative_unit"),
+            estados_disponiveis,
+            placeholder=t("all_units"),
+            format_func=rotulo_estado,
+            key="explore_states",
+        )
+
+    database_write_url = CONFIGURACAO_BANCO.database_write_url
+    with st.expander(t("data_administration")):
+        forcar_atualizacao = st.button(
+            t("update_gbif"),
+            icon=":material/refresh:",
+            width="stretch",
+            disabled=database_write_url is None,
+            help=t("update_help") if database_write_url is None else None,
+        )
+        if database_write_url is None:
+            st.caption(t("update_disabled"))
+
     st.divider()
     st.caption("GBIF · DHN250/IBGE · Catalogue of Life")
+
+if forcar_atualizacao and database_write_url:
+    try:
+        sincronizacao = sincronizar_dados_pais(
+            database_write_url,
+            schema,
+            pais.codigo_iso,
+            forcar_atualizacao=forcar_atualizacao,
+            callback=atualizar_progresso,
+        )
+        if sincronizacao.fonte == "GBIF":
+            obter_dados.clear()
+            st.sidebar.success(
+                t(
+                    "update_complete",
+                    count=formatar_numero(sincronizacao.registros_salvos),
+                )
+            )
+            st.rerun()
+    except (ErroGBIF, psycopg.Error, ValueError) as erro:
+        mensagem = mensagem_erro_segura(erro, t("unexpected_update_error"))
+        LOGGER.error("Falha controlada na atualização: %s", mensagem)
+        st.sidebar.error(
+            t(
+                "update_failed",
+                message=translate_error(mensagem, "unexpected_update_error"),
+            )
+        )
+    finally:
+        if widget_progresso["valor"] is not None:
+            widget_progresso["valor"].empty()
+elif forcar_atualizacao:
+    st.sidebar.warning(t("update_unavailable"))
 
 filtrados = filtrar_ocorrencias(
     dados,
@@ -484,8 +540,6 @@ descricao_pais = (
     if pais.codigo_iso == PAIS_PADRAO
     else t("selected_country", name=pais.nome, code=pais.codigo_iso)
 )
-st.title(APP_NAME)
-st.caption(t("app_caption"))
 fonte_traduzida = translate_source(resultado.fonte)
 st.html(
     f"""
@@ -500,6 +554,31 @@ if resultado.aviso:
     st.warning(translate_notice(resultado.aviso))
 
 indicadores = calcular_indicadores(filtrados)
+rotulo_especies = (
+    nomes_especies.get(especies[0], especies[0])
+    if len(especies) == 1
+    else t("selected_species_count", count=len(especies))
+    if especies
+    else t("all_species")
+)
+rotulo_periodo = (
+    t("all_available_period")
+    if intervalo_anos is None or intervalo_anos == limites_anos
+    else f"{intervalo_anos[0]}–{intervalo_anos[1]}"
+)
+rotulo_tipos = (
+    tipos[0]
+    if len(tipos) == 1
+    else t("selected_record_types_count", count=len(tipos))
+    if tipos
+    else t("all_record_types")
+)
+st.markdown(
+    f"**{t('active_filters')}:** "
+    + " • ".join([pais.nome, rotulo_especies, rotulo_periodo, rotulo_tipos])
+)
+st.caption(t("records_found", count=formatar_numero(indicadores["occurrences"])))
+
 ultima_atualizacao = (
     pd.Timestamp(resultado.resumo_importacao.atualizado_em).strftime("%d/%m/%Y")
     if resultado.resumo_importacao

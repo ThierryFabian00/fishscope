@@ -17,6 +17,9 @@ def test_catalogos_de_traducao_tem_as_mesmas_chaves():
 def test_traducao_independente_da_sessao():
     assert translate("home", "pt") == "Início"
     assert translate("home", "en") == "Home"
+    assert translate("select_country", "pt") == "Selecione um país"
+    assert translate("clear_filters", "en") == "Clear filters"
+    assert translate("all_available_period", "pt") == "Todo o período disponível"
     assert translate("occurrences_code", "en", code="BR") == "Occurrences — BR"
 
 
